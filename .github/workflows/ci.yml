@@ -64,3 +64,27 @@ jobs:
           env-names: VALITETTU
           smoke: test/fixtures/env-smoke.json
           strict: "true"
+
+  paketti:
+    # Testaa sen, mitä käyttäjä oikeasti saa npm:stä: pakkaa, asenna puhtaaseen kansioon, aja.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Asenna, käännä ja pakkaa
+        run: |
+          npm ci
+          npm pack --pack-destination "$RUNNER_TEMP"
+
+      - name: Asenna paketti puhtaaseen kansioon ja aja
+        run: |
+          mkdir "$RUNNER_TEMP/asennus" && cd "$RUNNER_TEMP/asennus"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/tonyweckstrom-mcp-doctor-*.tgz
+          test "$(npx mcp-doctor --version)" = "$(node -p "require('$GITHUB_WORKSPACE/package.json').version")"
+          npx mcp-doctor --strict -- node "$GITHUB_WORKSPACE/test/fixtures/good-server.mjs"

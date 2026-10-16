@@ -6,6 +6,7 @@ import { formatJson, formatText } from "./report.js";
 import { diagnose } from "./runner.js";
 import { parseSmokeSpec } from "./smoke.js";
 import { UsageError } from "./types.js";
+import { VERSIO } from "./versio.js";
 
 export const EXIT_OK = 0;
 export const EXIT_FINDINGS = 1;
@@ -31,6 +32,7 @@ Valinnat:
   --timeout-ms <luku>    yksittäisen pyynnön aikakatkaisu, oletus 10000
   --env <NIMI>           välitä ympäristömuuttuja stdio-palvelimelle (toistettava)
   --bearer-env <NIMI>    lue HTTP-palvelimen Bearer-token tästä ympäristömuuttujasta
+  --version              tulosta versio
   --help                 tämä ohje
 
 Poistumiskoodit: 0 kunnossa, 1 löydöksiä (virhe, tai varoitus --strict-tilassa), 2 käyttö- tai tiedostovirhe.
@@ -42,7 +44,7 @@ interface Args {
   bools: Set<string>;
 }
 
-const BOOL_FLAGS = new Set(["json", "strict", "help"]);
+const BOOL_FLAGS = new Set(["json", "strict", "help", "version"]);
 const VALUE_FLAGS = new Set(["smoke", "timeout-ms", "env", "bearer-env", "url"]);
 
 function parseArgs(argv: string[]): Args {
@@ -77,7 +79,13 @@ function one(args: Args, name: string): string | undefined {
 /** Ajaa komentorivin ja palauttaa poistumiskoodin. Ei kutsu process.exit-funktiota. */
 export async function main(argv: string[], io: CliIo): Promise<number> {
   try {
-    if (argv.includes("--help")) {
+    // Vain '--'-merkkiä edeltävät argumentit ovat meidän: palvelimen oma '--help' ei saa laukaista ohjetta.
+    const ennenErotinta = argv.includes("--") ? argv.slice(0, argv.indexOf("--")) : argv;
+    if (ennenErotinta.includes("--version")) {
+      io.stdout(`${VERSIO}\n`);
+      return EXIT_OK;
+    }
+    if (ennenErotinta.includes("--help")) {
       io.stdout(USAGE);
       return EXIT_OK;
     }
