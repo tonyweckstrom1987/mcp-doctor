@@ -1,0 +1,4 @@
+[
+  { "tool": "env", "arguments": { "name": "VALITETTU" } },
+  { "tool": "env", "arguments": { "name": "SALAINEN_ARVO" } }
+]

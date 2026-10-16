@@ -108,7 +108,7 @@ Kentät: `tool` (pakollinen), `arguments` (oletus `{}`), `expectError` (oletus `
     strict: "true"
 ```
 
-Syötteet: `command` tai `url`, `smoke`, `strict`, `timeout-ms`, `bearer-env`. HTTP-palvelimen tokenin aseta action-askeleen `env`-lohkossa secretistä ja anna muuttujan nimi syötteellä `bearer-env`. Syötteet välitetään kuoreen ympäristömuuttujina, ei komentoriville, joten ne eivät voi injektoida komentoja.
+Syötteet: `command` tai `url`, `smoke`, `strict`, `timeout-ms`, `env-names`, `bearer-env`. Stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat: aseta arvot action-askeleen `env`-lohkossa ja listaa nimet syötteellä `env-names` (välilyönnein erotettuna). HTTP-palvelimen tokenin aseta samoin `env`-lohkossa secretistä ja anna muuttujan nimi syötteellä `bearer-env`. Syötteet välitetään kuoreen ympäristömuuttujina, ei komentoriville, joten ne eivät voi injektoida komentoja.
 
 ## Turvallisuus
 
