@@ -23,6 +23,10 @@ inputs:
     description: Yksittäisen pyynnön aikakatkaisu millisekunteina.
     required: false
     default: "10000"
+  env-names:
+    description: Välilyönnillä erotetut ympäristömuuttujien nimet, jotka välitetään stdio-palvelimelle (aseta arvot action-askeleen env-lohkossa). Muita muuttujia palvelin ei näe.
+    required: false
+    default: ""
   bearer-env:
     description: Ympäristömuuttujan nimi, josta HTTP-palvelimen Bearer-token luetaan (aseta muuttuja tämän askeleen env-lohkossa secretistä).
     required: false
@@ -49,6 +53,7 @@ runs:
         INPUT_STRICT: ${{ inputs.strict }}
         INPUT_TIMEOUT: ${{ inputs.timeout-ms }}
         INPUT_BEARER_ENV: ${{ inputs.bearer-env }}
+        INPUT_ENV_NAMES: ${{ inputs.env-names }}
       run: |
         # Syötteet välitetään ympäristömuuttujina, ei suoraan komentoriville (ei komentoinjektiota).
         args=()
@@ -57,10 +62,16 @@ runs:
         args+=(--timeout-ms "$INPUT_TIMEOUT")
         if [ -n "$INPUT_URL" ]; then
           [ -n "$INPUT_COMMAND" ] && { echo "Anna joko command tai url, ei molempia" >&2; exit 2; }
+          [ -n "$INPUT_ENV_NAMES" ] && { echo "env-names koskee vain command-palvelinta" >&2; exit 2; }
           [ -n "$INPUT_BEARER_ENV" ] && args+=(--bearer-env "$INPUT_BEARER_ENV")
           args+=(--url "$INPUT_URL")
         else
           [ -z "$INPUT_COMMAND" ] && { echo "Anna command tai url" >&2; exit 2; }
+          [ -n "$INPUT_BEARER_ENV" ] && { echo "bearer-env koskee vain url-palvelinta" >&2; exit 2; }
+          for name in $INPUT_ENV_NAMES; do
+            [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "Virheellinen ympäristömuuttujan nimi: $name" >&2; exit 2; }
+            args+=(--env "$name")
+          done
           read -ra cmd <<< "$INPUT_COMMAND"
           args+=(-- "${cmd[@]}")
         fi
