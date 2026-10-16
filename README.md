@@ -8,7 +8,20 @@ Miksi: MCP-asiakkaat (Claude Desktop, Cursor) antavat vähän tietoa, kun palvel
 
 ## Asennus
 
-Pakettia ei ole julkaistu npm:ään. Asenna lähteistä (Node 22.12+ tai 24):
+Ei asennusta: aja suoraan npm:stä (Node 22.12+ tai 24):
+
+```bash
+npx @tonyweckstrom/mcp-doctor -- node ./oma-palvelin/dist/index.js
+```
+
+Tai asenna globaalisti (komento on silloin `mcp-doctor`):
+
+```bash
+npm install -g @tonyweckstrom/mcp-doctor
+mcp-doctor --version
+```
+
+Tai lähteistä:
 
 ```bash
 git clone https://github.com/tonyweckstrom1987/mcp-doctor.git
@@ -22,14 +35,14 @@ node dist/bin.js --help
 stdio-palvelin (komento annetaan `--`-merkin jälkeen):
 
 ```bash
-node dist/bin.js -- node ../oma-palvelin/dist/index.js
+npx @tonyweckstrom/mcp-doctor -- node ../oma-palvelin/dist/index.js
 ```
 
 HTTP-palvelin (Streamable HTTP), tarvittaessa Bearer-tokenilla ympäristömuuttujasta:
 
 ```bash
 export DOCTOR_TOKEN=...   # kirjoita itse, älä liitä tokenia komentoriville
-node dist/bin.js --url http://127.0.0.1:3000/mcp --bearer-env DOCTOR_TOKEN
+npx @tonyweckstrom/mcp-doctor --url http://127.0.0.1:3000/mcp --bearer-env DOCTOR_TOKEN
 ```
 
 Esimerkkituloste (mcp-server-starter, savuajolla):
@@ -43,6 +56,21 @@ Savuajo:
 Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
 ```
 
+Ja kun palvelimessa on vikoja (testipalvelin, jossa on päällekkäisiä ja vajaasti kuvattuja työkaluja), tulos on virheitä ja poistumiskoodi `1`:
+
+```
+mcp-doctor: node bad-tools-server.mjs
+Palvelin: huono-palvelin 0.0.1, 4 työkalua
+VIRHE    [TOOL_DUPLICATE] dup: työkalun nimi esiintyy 2 kertaa
+VIRHE    [TOOL_NAME_INVALID] no desc!: nimi on tyhjä, yli 128 merkkiä tai sisältää sallittujen merkkien (A-Z a-z 0-9 _ - .) ulkopuolisia merkkejä
+VIRHE    [SCHEMA_REQUIRED_UNKNOWN] loose: pakollinen kenttä 'z' ei ole properties-listassa
+VAROITUS [TOOL_DESC_MISSING] no desc!: kuvaus puuttuu: malli ei tiedä milloin työkalua kuuluu käyttää
+VAROITUS [SCHEMA_PROP_UNTYPED] loose: kentällä 'x' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä
+VAROITUS [SCHEMA_PROP_DESC_MISSING] loose: kentältä 'x' puuttuu kuvaus
+VAROITUS [SCHEMA_PROP_DESC_MISSING] loose: kentältä 'y' puuttuu kuvaus
+Yhteenveto: 3 virhettä, 4 varoitusta, 0 huomiota -> EPÄONNISTUI
+```
+
 | Valinta | Selitys |
 | --- | --- |
 | `--smoke <tiedosto>` | savuajo: kutsuu vain tiedostossa nimetyt työkalut |
@@ -51,6 +79,7 @@ Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
 | `--timeout-ms <luku>` | yksittäisen pyynnön aikakatkaisu, oletus 10000 |
 | `--env <NIMI>` | välittää ympäristömuuttujan stdio-palvelimelle (toistettava) |
 | `--bearer-env <NIMI>` | HTTP-palvelimen Bearer-token tästä muuttujasta |
+| `--version` | tulostaa version |
 
 Poistumiskoodit: `0` kunnossa, `1` löydöksiä (virhe, tai varoitus `--strict`-tilassa), `2` käyttö- tai tiedostovirhe.
 
@@ -101,14 +130,14 @@ Kentät: `tool` (pakollinen), `arguments` (oletus `{}`), `expectError` (oletus `
 ```yaml
 - uses: actions/checkout@v7
 - run: npm ci && npm run build        # oma palvelimesi
-- uses: tonyweckstrom1987/mcp-doctor@main
+- uses: tonyweckstrom1987/mcp-doctor@v0.2.0
   with:
     command: node dist/index.js
     smoke: smoke.json
     strict: "true"
 ```
 
-Syötteet: `command` tai `url`, `smoke`, `strict`, `timeout-ms`, `env-names`, `bearer-env`. Stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat: aseta arvot action-askeleen `env`-lohkossa ja listaa nimet syötteellä `env-names` (välilyönnein erotettuna). HTTP-palvelimen tokenin aseta samoin `env`-lohkossa secretistä ja anna muuttujan nimi syötteellä `bearer-env`. Syötteet välitetään kuoreen ympäristömuuttujina, ei komentoriville, joten ne eivät voi injektoida komentoja.
+Lukitse Action versiotagiin (`@v0.2.0`) tai tiukemmin commit-SHA:han, älä `@main`-haaraan. Syötteet: `command` tai `url`, `smoke`, `strict`, `timeout-ms`, `env-names`, `bearer-env`. Stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat: aseta arvot action-askeleen `env`-lohkossa ja listaa nimet syötteellä `env-names` (välilyönnein erotettuna). HTTP-palvelimen tokenin aseta samoin `env`-lohkossa secretistä ja anna muuttujan nimi syötteellä `bearer-env`. Syötteet välitetään kuoreen ympäristömuuttujina, ei komentoriville, joten ne eivät voi injektoida komentoja.
 
 ## Turvallisuus
 
@@ -117,6 +146,21 @@ Syötteet: `command` tai `url`, `smoke`, `strict`, `timeout-ms`, `env-names`, `b
 - Bearer-token luetaan ympäristömuuttujasta, ei komentoriviltä, eikä sitä tulosteta. Tulostuva kohde-osoite jättää kyselyparametrit pois.
 - Raportti ei sisällä työkalujen tuloksia, vain virheen ensimmäisen tekstirivin (enintään 300 merkkiä).
 - Yhteysvirheen viestiin liitetään stdio-palvelimen viimeinen stderr-teksti. Jos palvelimesi kirjoittaa lokiin salaisuuksia, ne päätyvät CI-lokiin.
+
+## Vaihtoehtoja ja miksi tämä
+
+Tilanne 16.10.2026. MCP-palvelimen testaamiseen on jo muitakin työkaluja, ja jotkut niistä ovat laajempia kuin tämä:
+
+- [`@mcpjam/cli`](https://www.npmjs.com/package/@mcpjam/cli) on laaja testaus- ja virheenetsintätyökalu: yhteystarkistukset, OAuth-vaatimustenmukaisuus, protokollatarkistukset, työkalujen vertailu ja pilvipalvelu. Jos tarvitset OAuth-testejä tai kattavaa protokollakonformanssia, käytä sitä. Se kerää oletuksena anonyymiä käyttötilastoa (poistettavissa valinnalla `--no-telemetry`).
+- MCP Inspector -tyyppiset työkalut (esim. `@modelcontextprotocol/inspector`) on tehty palvelimen käsin tutkimiseen ja kokeiluun selaimessa tai komentorivillä, ei pelkkään pass/fail-tarkistukseen CI:ssä.
+
+mcp-doctor on tarkoituksella pieni ja rajattu yhteen tehtävään: yksi komento CI:ssä, joka kaatuu, kun palvelin tai sen työkalukuvaukset ovat rikki. Erot:
+
+- **Kuvausten laatu mallin kannalta:** tarkistaa, että työkalulla on kuvaus ja että skeeman kentät ovat tyypitetty ja kuvattu, koska malli valitsee ja täyttää työkalut näiden perusteella.
+- **Savuajo vain nimeämillesi työkaluille:** työkaluja kutsutaan vain tiedostossa (`--smoke`) nimetyillä, itse määritellyillä argumenteilla. Mitään ei kutsuta arvaamalla.
+- **Ei verkkoa muualle:** työkalu puhuu vain osoittamallesi palvelimelle. Ei API-avaimia, ei tilastoja, ei tiliä.
+- **Eristetty Action:** stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat, ja Actionin syötteet eivät pääse komentoriville.
+- **Pieni ja testattu:** vähän koodia, 80 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
 
 ## Rajaukset
 
@@ -127,7 +171,7 @@ Ei tue vanhaa SSE-siirtoa eikä OAuth-kirjautumista. Tarkistaa työkalut, ei `re
 ```bash
 npm ci
 npm run typecheck
-npm test        # 76 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
+npm test        # 80 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
 ```
 
 Testit ajetaan oikeita MCP-palvelimia vastaan (`test/fixtures/`): kunnossa oleva, huonosti määritelty, väärää protokollaversiota puhuva, heti kaatuva sekä sivuttava. Ennen julkaisua koodiin tehtiin tahallisia rikkomisia (mutaatiot), (22 kappaletta), ja jokainen niistä kaatoi testin.

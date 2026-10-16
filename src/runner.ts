@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { lintTools } from "./lint.js";
 import { summarize } from "./report.js";
+import { VERSIO } from "./versio.js";
 import type { Finding, Report, SmokeCall, SmokeResult, ToolLike } from "./types.js";
 
 export interface DiagnoseOptions {
@@ -48,7 +49,7 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
   const smokeResults: SmokeResult[] = [];
   // Huom: SDK:n asiakas tarkistaa itse outputSchema-vaatimuksen (puuttuva tai virheellinen structuredContent
   // heittää virheen), ja se näkyy löydöksenä SMOKE_CALL_FAILED.
-  const client = new Client({ name: "mcp-doctor", version: "0.1.0" });
+  const client = new Client({ name: "mcp-doctor", version: VERSIO });
   try {
     try {
       await client.connect(opts.transport, { timeout: opts.timeoutMs });
