@@ -1,0 +1,7 @@
+{
+  "calls": [
+    { "tool": "greet", "arguments": { "name": "Tony" } },
+    { "tool": "add", "arguments": { "a": 1, "b": 2 } },
+    { "tool": "always_fails", "expectError": true }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "mcp-doctor",
+  "version": "0.1.0",
+  "description": "Terveystarkastus MCP-palvelimelle: initialize-kättely, työkalujen skeemojen tarkistus ja savuajo, raportti ja exit-koodi CI:lle. / Health check for MCP servers: handshake, tool schema lint and smoke calls, with a CI-friendly exit code.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0"
+  },
+  "bin": {
+    "mcp-doctor": "dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4",
+    "zod": "^4.6.6"
+  }
+}

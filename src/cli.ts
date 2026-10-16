@@ -1,0 +1,181 @@
+import { readFileSync } from "node:fs";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { formatJson, formatText } from "./report.js";
+import { diagnose } from "./runner.js";
+import { parseSmokeSpec } from "./smoke.js";
+import { UsageError } from "./types.js";
+
+export const EXIT_OK = 0;
+export const EXIT_FINDINGS = 1;
+export const EXIT_USAGE = 2;
+
+export interface CliIo {
+  stdout: (s: string) => void;
+  stderr: (s: string) => void;
+  env: Record<string, string | undefined>;
+  readFile: (path: string) => string;
+}
+
+export const USAGE = `mcp-doctor - MCP-palvelimen terveystarkastus
+
+Käyttö:
+  mcp-doctor [valinnat] -- <komento> [argumentit...]     stdio-palvelin
+  mcp-doctor [valinnat] --url <http(s)-osoite>           HTTP-palvelin (Streamable HTTP)
+
+Valinnat:
+  --smoke <tiedosto>     savuajo: kutsuu vain tiedostossa nimetyt työkalut
+  --json                 tulosta raportti JSONina
+  --strict               varoituksetkin kaatavat ajon (exit 1)
+  --timeout-ms <luku>    yksittäisen pyynnön aikakatkaisu, oletus 10000
+  --env <NIMI>           välitä ympäristömuuttuja stdio-palvelimelle (toistettava)
+  --bearer-env <NIMI>    lue HTTP-palvelimen Bearer-token tästä ympäristömuuttujasta
+  --help                 tämä ohje
+
+Poistumiskoodit: 0 kunnossa, 1 löydöksiä (virhe, tai varoitus --strict-tilassa), 2 käyttö- tai tiedostovirhe.
+`;
+
+interface Args {
+  command: string[];
+  flags: Map<string, string[]>;
+  bools: Set<string>;
+}
+
+const BOOL_FLAGS = new Set(["json", "strict", "help"]);
+const VALUE_FLAGS = new Set(["smoke", "timeout-ms", "env", "bearer-env", "url"]);
+
+function parseArgs(argv: string[]): Args {
+  const flags = new Map<string, string[]>();
+  const bools = new Set<string>();
+  let command: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--") {
+      command = argv.slice(i + 1);
+      break;
+    }
+    if (!a.startsWith("--")) throw new UsageError(`Odottamaton argumentti '${a}' (palvelimen komento tulee '--'-merkin jälkeen)`);
+    const name = a.slice(2);
+    if (BOOL_FLAGS.has(name)) bools.add(name);
+    else if (VALUE_FLAGS.has(name)) {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith("--")) throw new UsageError(`Valinta --${name} tarvitsee arvon`);
+      flags.set(name, [...(flags.get(name) ?? []), v]);
+    } else throw new UsageError(`Tuntematon valinta --${name}`);
+  }
+  return { command, flags, bools };
+}
+
+function one(args: Args, name: string): string | undefined {
+  const v = args.flags.get(name);
+  if (!v) return undefined;
+  if (v.length > 1) throw new UsageError(`Valinta --${name} saa esiintyä vain kerran`);
+  return v[0];
+}
+
+/** Ajaa komentorivin ja palauttaa poistumiskoodin. Ei kutsu process.exit-funktiota. */
+export async function main(argv: string[], io: CliIo): Promise<number> {
+  try {
+    if (argv.includes("--help")) {
+      io.stdout(USAGE);
+      return EXIT_OK;
+    }
+    if (argv.length === 0) {
+      io.stderr(USAGE);
+      return EXIT_USAGE;
+    }
+    const args = parseArgs(argv);
+    const url = one(args, "url");
+    if (url !== undefined && args.command.length > 0) throw new UsageError("Anna joko --url tai komento '--'-merkin jälkeen, ei molempia");
+    if (url === undefined && args.command.length === 0) throw new UsageError("Anna palvelin: --url <osoite> tai komento '--'-merkin jälkeen");
+    const timeoutRaw = one(args, "timeout-ms");
+    const timeoutMs = timeoutRaw === undefined ? 10000 : Number(timeoutRaw);
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new UsageError("--timeout-ms täytyy olla positiivinen kokonaisluku");
+
+    const smokePath = one(args, "smoke");
+    let smoke;
+    if (smokePath !== undefined) {
+      let text: string;
+      try {
+        text = io.readFile(smokePath);
+      } catch {
+        throw new UsageError(`Savuajotiedostoa '${smokePath}' ei voi lukea`);
+      }
+      smoke = parseSmokeSpec(text);
+    }
+
+    let transport: Transport;
+    let target: string;
+    let stderrTail: (() => string) | undefined;
+    if (url !== undefined) {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new UsageError(`Virheellinen osoite '${url}'`);
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new UsageError("--url: vain http ja https sallitaan");
+      if (args.flags.has("env")) throw new UsageError("--env koskee vain stdio-palvelinta");
+      const bearerEnv = one(args, "bearer-env");
+      let requestInit: RequestInit | undefined;
+      if (bearerEnv !== undefined) {
+        const token = io.env[bearerEnv];
+        if (!token) throw new UsageError(`Ympäristömuuttuja ${bearerEnv} on tyhjä tai puuttuu`);
+        requestInit = { headers: { Authorization: `Bearer ${token}` } };
+      }
+      transport = new StreamableHTTPClientTransport(parsed, requestInit ? { requestInit } : undefined);
+      target = `${parsed.origin}${parsed.pathname}`; // ei kyselyparametreja eikä tunnuksia tulosteisiin
+    } else {
+      if (args.flags.has("bearer-env")) throw new UsageError("--bearer-env koskee vain --url-palvelinta");
+      const env: Record<string, string> = {};
+      for (const name of args.flags.get("env") ?? []) {
+        const v = io.env[name];
+        if (v === undefined) throw new UsageError(`Ympäristömuuttujaa ${name} ei ole asetettu`);
+        env[name] = v;
+      }
+      const [command, ...rest] = args.command;
+      const stdio = new StdioClientTransport({ command, args: rest, env: { ...getSafeEnv(io.env), ...env }, stderr: "pipe" });
+      let tail = "";
+      stdio.stderr?.on("data", (d: Buffer | string) => {
+        tail = (tail + d.toString()).slice(-1000);
+      });
+      stderrTail = () => tail;
+      transport = stdio;
+      target = args.command.join(" ");
+    }
+
+    const report = await diagnose({ transport, target, smoke, timeoutMs, strict: args.bools.has("strict"), stderrTail });
+    io.stdout(args.bools.has("json") ? formatJson(report) : formatText(report));
+    return report.ok ? EXIT_OK : EXIT_FINDINGS;
+  } catch (err) {
+    if (err instanceof UsageError) {
+      io.stderr(`Virhe: ${err.message}\n\n${USAGE}`);
+      return EXIT_USAGE;
+    }
+    io.stderr(`Odottamaton virhe: ${err instanceof Error ? err.message : String(err)}\n`);
+    return EXIT_USAGE;
+  }
+}
+
+/** Vain PATH ja perusmuuttujat: tarkastettava palvelin ei näe muuta ympäristöä kuin --env:llä nimetyn. */
+function getSafeEnv(env: Record<string, string | undefined>): Record<string, string> {
+  const keep = process.platform === "win32"
+    ? ["PATH", "PATHEXT", "SYSTEMROOT", "COMSPEC", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH"]
+    : ["PATH", "HOME", "LANG", "TMPDIR", "SHELL", "USER"];
+  const out: Record<string, string> = {};
+  for (const k of keep) {
+    const v = env[k];
+    if (v !== undefined && !v.startsWith("()")) out[k] = v;
+  }
+  return out;
+}
+
+export function realIo(): CliIo {
+  return {
+    stdout: (s) => process.stdout.write(s),
+    stderr: (s) => process.stderr.write(s),
+    env: process.env,
+    readFile: (p) => readFileSync(p, "utf8"),
+  };
+}

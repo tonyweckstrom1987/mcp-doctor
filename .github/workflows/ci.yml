@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Aseta Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Asenna riippuvuudet
+        run: npm ci
+
+      - name: Tarkista tuotantoriippuvuuksien haavoittuvuudet
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Tyyppitarkistus
+        run: npm run typecheck
+
+      - name: Käännä
+        run: npm run build
+
+      - name: Testit
+        run: npm test
+
+      - name: Oma työkalu omaa testipalvelinta vastaan
+        run: node dist/bin.js --strict -- node test/fixtures/good-server.mjs
+
+  action:
+    # Varmistaa, että repon oma GitHub Action toimii: sama polku kuin ulkopuolisella käyttäjällä.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Aja action kunnossa olevaa palvelinta vastaan
+        uses: ./
+        with:
+          command: node test/fixtures/good-server.mjs
+          smoke: test/fixtures/good-smoke.json
+          strict: "true"

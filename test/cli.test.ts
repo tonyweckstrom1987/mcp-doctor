@@ -1,0 +1,164 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { z } from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { main } from "../src/cli.js";
+import { NODE, fixture, makeIo } from "./helpers.js";
+
+const good = ["--", NODE, fixture("good-server.mjs")];
+
+describe("CLI: ohje ja käyttövirheet (exit 2)", () => {
+  it("--help tulostaa ohjeen ja palauttaa 0", async () => {
+    const io = makeIo();
+    expect(await main(["--help"], io)).toBe(0);
+    expect(io.out).toContain("Käyttö:");
+  });
+
+  it.each([
+    ["tuntematon valinta", ["--outo", "--", "x"]],
+    ["ylimääräinen argumentti ilman --", ["foo"]],
+    ["ei palvelinta", ["--json"]],
+    ["sekä --url että komento", ["--url", "http://localhost:1/mcp", "--", "x"]],
+    ["valinta ilman arvoa", ["--smoke"]],
+    ["virheellinen aikakatkaisu", ["--timeout-ms", "abc", "--", "x"]],
+    ["nolla aikakatkaisu", ["--timeout-ms", "0", "--", "x"]],
+    ["virheellinen url", ["--url", "ei-osoite"]],
+    ["ftp-osoite", ["--url", "ftp://example.com/x"]],
+    ["--env url:n kanssa", ["--url", "http://localhost:1/mcp", "--env", "X"]],
+    ["--bearer-env stdion kanssa", ["--bearer-env", "X", "--", "x"]],
+    ["--bearer-env tyhjä muuttuja", ["--url", "http://localhost:1/mcp", "--bearer-env", "EI_ASETETTU"]],
+    ["--env-muuttujaa ei ole", ["--env", "EI_ASETETTU_X", "--", "x"]],
+    ["savuajotiedostoa ei löydy", ["--smoke", "puuttuu.json", "--", "x"]],
+    ["savuajotiedosto rikki", ["--smoke", "rikki.json", "--", "x"]],
+    ["--smoke kahdesti", ["--smoke", "a", "--smoke", "b", "--", "x"]],
+  ] as const)("%s", async (_nimi, argv) => {
+    const io = makeIo({}, { "rikki.json": "{" });
+    delete io.env.EI_ASETETTU;
+    delete io.env.EI_ASETETTU_X;
+    expect(await main([...argv], io)).toBe(2);
+    expect(io.err).toContain("Virhe:");
+  });
+});
+
+describe("CLI: ilman argumentteja", () => {
+  it("tulostaa ohjeen stderriin ja palauttaa 2", async () => {
+    const io = makeIo();
+    expect(await main([], io)).toBe(2);
+    expect(io.err).toContain("Käyttö:");
+    expect(io.out).toBe("");
+  });
+});
+
+describe("CLI: stdio-palvelin", () => {
+  it("kunnossa oleva palvelin: exit 0 ja tekstiraportti", async () => {
+    const io = makeIo();
+    expect(await main(good, io)).toBe(0);
+    expect(io.out).toContain("Palvelin: hyva-palvelin 1.2.3, 5 työkalua");
+    expect(io.out).toContain("-> OK");
+  });
+
+  it("viallinen palvelin: exit 1 ja löydökset tulosteessa", async () => {
+    const io = makeIo();
+    expect(await main(["--", NODE, fixture("bad-tools-server.mjs")], io)).toBe(1);
+    expect(io.out).toContain("[TOOL_DUPLICATE]");
+    expect(io.out).toContain("EPÄONNISTUI");
+  });
+
+  it("--json tulostaa jäsennettävän raportin", async () => {
+    const io = makeIo();
+    expect(await main(["--json", ...good], io)).toBe(0);
+    const r = JSON.parse(io.out);
+    expect(r.version).toBe(1);
+    expect(r.ok).toBe(true);
+    expect(r.server.name).toBe("hyva-palvelin");
+    expect(r.toolCount).toBe(5);
+  });
+
+  it("--smoke ajaa tiedostossa nimetyt kutsut", async () => {
+    const spec = JSON.stringify({ calls: [{ tool: "greet", arguments: { name: "Tony" } }, { tool: "always_fails", expectError: true }] });
+    const io = makeIo({}, { "savu.json": spec });
+    expect(await main(["--smoke", "savu.json", ...good], io)).toBe(0);
+    expect(io.out).toMatch(/OK\s+greet \(\d+ ms\)/);
+    expect(io.out).toMatch(/OK\s+always_fails/);
+  });
+
+  it("--smoke: epäonnistunut kutsu antaa exit 1", async () => {
+    const io = makeIo({}, { "savu.json": JSON.stringify([{ tool: "always_fails" }]) });
+    expect(await main(["--smoke", "savu.json", ...good], io)).toBe(1);
+    expect(io.out).toContain("SMOKE_TOOL_ERROR");
+  });
+
+  it("--strict: varoitus kaataa ajon, ilman sitä ei", async () => {
+    const files = { "savu.json": JSON.stringify([{ tool: "empty_result" }]) };
+    expect(await main(["--smoke", "savu.json", ...good], makeIo({}, files))).toBe(0);
+    expect(await main(["--strict", "--smoke", "savu.json", ...good], makeIo({}, files))).toBe(1);
+  });
+
+  it("palvelin ei näe vanhempaa ympäristöä, ellei sitä välitetä --env:llä", async () => {
+    const probe = fixture("env-probe-server.mjs");
+    const io = makeIo({ SALAINEN_ARVO: "ei-saa-nakya", VALITETTU: "nakyy" });
+    expect(await main(["--env", "VALITETTU", "--smoke", "e.json", "--", NODE, probe], { ...io, readFile: () => JSON.stringify([{ tool: "env", arguments: { name: "SALAINEN_ARVO" } }, { tool: "env", arguments: { name: "VALITETTU" } }]) })).toBe(0);
+    expect(io.out).toContain("OK");
+  });
+
+  it("aikakatkaisu --timeout-ms:llä", async () => {
+    const io = makeIo({}, { "s.json": JSON.stringify([{ tool: "slow", arguments: { ms: 6000 } }]) });
+    expect(await main(["--timeout-ms", "1500", "--smoke", "s.json", ...good], io)).toBe(1);
+    expect(io.out).toContain("SMOKE_CALL_FAILED");
+  });
+});
+
+describe("CLI: HTTP-palvelin", () => {
+  let http: Server;
+  let url: string;
+  const TOKEN = "testitoken-1234567890";
+
+  beforeAll(async () => {
+    http = createServer(async (req, res) => {
+      if (req.headers.authorization !== `Bearer ${TOKEN}`) {
+        res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+      const server = new McpServer({ name: "http-palvelin", version: "9.9.9" });
+      server.registerTool("ping", { description: "Vastaa pongilla testejä varten.", inputSchema: { n: z.number().optional().describe("Mikä tahansa luku") } }, async () => ({
+        content: [{ type: "text", text: "pong" }],
+      }));
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on("close", () => void transport.close());
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    });
+    await new Promise<void>((r) => http.listen(0, "127.0.0.1", r));
+    url = `http://127.0.0.1:${(http.address() as AddressInfo).port}/mcp`;
+  });
+
+  afterAll(() => new Promise<void>((r) => http.close(() => r())));
+
+  it("oikea token: exit 0, savuajo toimii", async () => {
+    const io = makeIo({ DOCTOR_TOKEN: TOKEN }, { "s.json": JSON.stringify([{ tool: "ping" }]) });
+    expect(await main(["--url", url, "--bearer-env", "DOCTOR_TOKEN", "--smoke", "s.json"], io)).toBe(0);
+    expect(io.out).toContain("Palvelin: http-palvelin 9.9.9, 1 työkalua");
+    expect(io.out).toMatch(/OK\s+ping/);
+  });
+
+  it("väärä token: yhteysvirhe (exit 1), tokenia ei tulosteta", async () => {
+    const io = makeIo({ DOCTOR_TOKEN: "vaara-token-xxxxxxxxxx" });
+    expect(await main(["--url", url, "--bearer-env", "DOCTOR_TOKEN"], io)).toBe(1);
+    expect(io.out).toContain("CONNECT_FAILED");
+    expect(io.out + io.err).not.toContain("vaara-token-xxxxxxxxxx");
+  });
+
+  it("ei tokenia: yhteysvirhe (exit 1)", async () => {
+    const io = makeIo();
+    expect(await main(["--url", url], io)).toBe(1);
+    expect(io.out).toContain("CONNECT_FAILED");
+  });
+
+  it("kohde tulostuu ilman kyselyparametreja ja tunnuksia", async () => {
+    const io = makeIo({ DOCTOR_TOKEN: TOKEN });
+    await main(["--url", `${url}?salainen=abc`, "--bearer-env", "DOCTOR_TOKEN"], io);
+    expect(io.out).not.toContain("salainen");
+  });
+});

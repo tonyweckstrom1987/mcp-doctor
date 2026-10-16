@@ -1,0 +1,67 @@
+name: MCP Doctor
+description: Tarkistaa MCP-palvelimen kunnon (initialize-kättely, työkalujen skeemat, savuajo) ja kaataa työnkulun löydöksistä. / Health check for MCP servers.
+author: tonyweckstrom1987
+
+inputs:
+  command:
+    description: Käynnistyskomento stdio-palvelimelle (esim. "node dist/index.js"). Käytä tätä tai url-syötettä.
+    required: false
+    default: ""
+  url:
+    description: Streamable HTTP -palvelimen osoite (esim. http://localhost:3000/mcp). Käytä tätä tai command-syötettä.
+    required: false
+    default: ""
+  smoke:
+    description: Polku savuajotiedostoon (JSON). Vain siinä nimetyt työkalut kutsutaan.
+    required: false
+    default: ""
+  strict:
+    description: 'Jos "true", varoituksetkin kaatavat ajon.'
+    required: false
+    default: "false"
+  timeout-ms:
+    description: Yksittäisen pyynnön aikakatkaisu millisekunteina.
+    required: false
+    default: "10000"
+  bearer-env:
+    description: Ympäristömuuttujan nimi, josta HTTP-palvelimen Bearer-token luetaan (aseta muuttuja tämän askeleen env-lohkossa secretistä).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+
+    - name: Asenna ja käännä mcp-doctor
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --no-audit --no-fund
+
+    - name: Aja mcp-doctor
+      shell: bash
+      env:
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_SMOKE: ${{ inputs.smoke }}
+        INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_TIMEOUT: ${{ inputs.timeout-ms }}
+        INPUT_BEARER_ENV: ${{ inputs.bearer-env }}
+      run: |
+        # Syötteet välitetään ympäristömuuttujina, ei suoraan komentoriville (ei komentoinjektiota).
+        args=()
+        [ "$INPUT_STRICT" = "true" ] && args+=(--strict)
+        [ -n "$INPUT_SMOKE" ] && args+=(--smoke "$INPUT_SMOKE")
+        args+=(--timeout-ms "$INPUT_TIMEOUT")
+        if [ -n "$INPUT_URL" ]; then
+          [ -n "$INPUT_COMMAND" ] && { echo "Anna joko command tai url, ei molempia" >&2; exit 2; }
+          [ -n "$INPUT_BEARER_ENV" ] && args+=(--bearer-env "$INPUT_BEARER_ENV")
+          args+=(--url "$INPUT_URL")
+        else
+          [ -z "$INPUT_COMMAND" ] && { echo "Anna command tai url" >&2; exit 2; }
+          read -ra cmd <<< "$INPUT_COMMAND"
+          args+=(-- "${cmd[@]}")
+        fi
+        node "$GITHUB_ACTION_PATH/dist/bin.js" "${args[@]}"

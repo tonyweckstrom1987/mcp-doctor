@@ -1,0 +1,127 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { lintTools } from "./lint.js";
+import { summarize } from "./report.js";
+import type { Finding, Report, SmokeCall, SmokeResult, ToolLike } from "./types.js";
+
+export interface DiagnoseOptions {
+  transport: Transport;
+  target: string;
+  smoke?: SmokeCall[];
+  timeoutMs: number;
+  strict: boolean;
+  /** Palauttaa viimeisimmän palvelimen stderr-tekstin (vain stdio), liitetään yhteysvirheeseen. */
+  stderrTail?: () => string;
+}
+
+const MAX_PAGES = 50;
+const MAX_MESSAGE = 300;
+
+function short(text: string): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  return one.length > MAX_MESSAGE ? one.slice(0, MAX_MESSAGE) + "…" : one;
+}
+
+function errText(e: unknown): string {
+  return short(e instanceof Error ? e.message : String(e));
+}
+
+function firstText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  for (const c of content) {
+    if (c && typeof c === "object" && (c as { type?: unknown }).type === "text" && typeof (c as { text?: unknown }).text === "string") {
+      return short((c as { text: string }).text);
+    }
+  }
+  return "";
+}
+
+function build(opts: DiagnoseOptions, server: Report["server"], toolCount: number, findings: Finding[], smoke: SmokeResult[]): Report {
+  const summary = summarize(findings);
+  const ok = summary.errors === 0 && (!opts.strict || summary.warnings === 0);
+  return { version: 1, target: opts.target, server, toolCount, findings, smoke, summary, ok };
+}
+
+/** Yhdistää palvelimeen, tarkistaa työkalut ja ajaa savuajon. Ei koskaan heitä: virheet ovat löydöksiä. */
+export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
+  const findings: Finding[] = [];
+  const smokeResults: SmokeResult[] = [];
+  // Huom: SDK:n asiakas tarkistaa itse outputSchema-vaatimuksen (puuttuva tai virheellinen structuredContent
+  // heittää virheen), ja se näkyy löydöksenä SMOKE_CALL_FAILED.
+  const client = new Client({ name: "mcp-doctor", version: "0.1.0" });
+  try {
+    try {
+      await client.connect(opts.transport, { timeout: opts.timeoutMs });
+    } catch (e) {
+      const tail = opts.stderrTail?.().trim();
+      const extra = tail ? ` | palvelimen stderr: ${short(tail)}` : "";
+      findings.push({ id: "CONNECT_FAILED", severity: "error", message: `yhteys tai initialize-kättely epäonnistui: ${errText(e)}${extra}` });
+      return build(opts, null, 0, findings, smokeResults);
+    }
+
+    const info = client.getServerVersion();
+    const server = info ? { name: String(info.name), version: String(info.version) } : null;
+    if (!server || !server.name) {
+      findings.push({ id: "SERVER_INFO_MISSING", severity: "warning", message: "palvelin ei kertonut nimeään ja versiotaan (serverInfo)" });
+    }
+
+    const caps = client.getServerCapabilities();
+    const tools: ToolLike[] = [];
+    if (!caps?.tools) {
+      findings.push({ id: "TOOLS_CAPABILITY_MISSING", severity: "warning", message: "palvelin ei ilmoita tools-kykyä, työkaluja ei listata" });
+    } else {
+      let cursor: string | undefined;
+      let pages = 0;
+      try {
+        do {
+          const res = await client.listTools(cursor ? { cursor } : undefined, { timeout: opts.timeoutMs });
+          tools.push(...(res.tools as ToolLike[]));
+          cursor = res.nextCursor;
+          pages++;
+        } while (cursor && pages < MAX_PAGES);
+        if (cursor) findings.push({ id: "TOOLS_PAGINATION_LIMIT", severity: "warning", message: `työkalulistaus keskeytettiin ${MAX_PAGES} sivun jälkeen` });
+      } catch (e) {
+        findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list epäonnistui: ${errText(e)}` });
+      }
+      if (tools.length === 0 && !findings.some((f) => f.id === "TOOLS_LIST_FAILED")) {
+        findings.push({ id: "TOOLS_EMPTY", severity: "warning", message: "palvelin ilmoittaa tools-kyvyn mutta työkalulista on tyhjä" });
+      }
+      findings.push(...lintTools(tools));
+    }
+
+    const byName = new Map(tools.map((t) => [t.name, t]));
+    for (const call of opts.smoke ?? []) {
+      const tool = byName.get(call.tool);
+      if (!tool) {
+        findings.push({ id: "SMOKE_TOOL_NOT_FOUND", severity: "error", tool: call.tool, message: "savuajotiedostossa nimetty työkalu ei ole palvelimen listalla" });
+        smokeResults.push({ tool: call.tool, ok: false, ms: 0 });
+        continue;
+      }
+      const start = Date.now();
+      let ok = true;
+      const fail = (id: string, severity: Finding["severity"], message: string) => {
+        findings.push({ id, severity, tool: call.tool, message });
+        if (severity === "error") ok = false;
+      };
+      try {
+        const res = await client.callTool({ name: call.tool, arguments: call.arguments }, undefined, { timeout: opts.timeoutMs });
+        const ms = Date.now() - start;
+        const isError = res.isError === true;
+        if (isError && !call.expectError) fail("SMOKE_TOOL_ERROR", "error", `työkalu palautti virheen: ${firstText(res.content) || "(ei tekstiä)"}`);
+        else if (!isError && call.expectError) fail("SMOKE_EXPECTED_ERROR", "error", "työkalun odotettiin palauttavan virheen, mutta kutsu onnistui");
+        if (!isError) {
+          const hasContent = Array.isArray(res.content) && res.content.length > 0;
+          if (!hasContent && res.structuredContent === undefined) fail("SMOKE_EMPTY_RESULT", "warning", "työkalu palautti tyhjän tuloksen");
+        }
+        if (ms > call.maxMs) fail("SMOKE_SLOW", "warning", `vastaus kesti ${ms} ms (raja ${call.maxMs} ms)`);
+        smokeResults.push({ tool: call.tool, ok, ms });
+      } catch (e) {
+        fail("SMOKE_CALL_FAILED", "error", `kutsu epäonnistui: ${errText(e)}`);
+        smokeResults.push({ tool: call.tool, ok: false, ms: Date.now() - start });
+      }
+    }
+    return build(opts, server, tools.length, findings, smokeResults);
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
