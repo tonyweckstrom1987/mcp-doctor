@@ -81,7 +81,7 @@ Yhteenveto: 3 virhettä, 4 varoitusta, 0 huomiota -> EPÄONNISTUI
 | `--bearer-env <NIMI>` | HTTP-palvelimen Bearer-token tästä muuttujasta |
 | `--version` | tulostaa version |
 
-Poistumiskoodit: `0` kunnossa, `1` löydöksiä (virhe, tai varoitus `--strict`-tilassa), `2` käyttö- tai tiedostovirhe.
+Poistumiskoodit: `0` kunnossa, `1` löydöksiä (virhe, tai varoitus `--strict`-tilassa), `2` käyttö- tai tiedostovirhe, `3` odottamaton sisäinen virhe.
 
 ## Mitä tarkistetaan
 

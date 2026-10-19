@@ -28,8 +28,12 @@ function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Fi
     if (!Array.isArray(required) || required.some((r) => typeof r !== "string")) {
       out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, "required ei ole merkkijonolista"));
     } else {
+      // Kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta: silloin properties-lista ei ole koko totuus, eikä puuttuvaa kenttää voi tuomita.
+      const composed = ["allOf", "anyOf", "oneOf", "$ref"].some((k) => k in schema);
       for (const r of required) {
-        if (!props || !(r in props)) {
+        // Object.hasOwn: perityt avaimet (esim. "constructor") eivät ole kenttiä.
+        if (!props || !Object.hasOwn(props, r)) {
+          if (composed) continue;
           out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `pakollinen kenttä '${r}' ei ole properties-listassa`));
         }
       }
@@ -37,6 +41,7 @@ function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Fi
   }
   if (props) {
     for (const [name, def] of Object.entries(props)) {
+      if (typeof def === "boolean") continue; // true/false on kelvollinen JSON Schema (kaikki sallittu / ei mitään sallittu)
       if (!isRecord(def)) {
         out.push(find("SCHEMA_PROP_UNTYPED", "warning", tool, `kentän '${name}' skeema ei ole objekti`));
         continue;

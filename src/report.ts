@@ -1,3 +1,4 @@
+import { clean, short } from "./text.js";
 import type { Finding, Report } from "./types.js";
 
 export function summarize(findings: Finding[]): Report["summary"] {
@@ -13,15 +14,16 @@ const ORDER = { error: 0, warning: 1, info: 2 } as const;
 
 export function formatText(r: Report): string {
   const lines: string[] = [];
-  lines.push(`mcp-doctor: ${r.target}`);
-  lines.push(r.server ? `Palvelin: ${r.server.name} ${r.server.version}, ${r.toolCount} työkalua` : "Palvelin: ei tietoja (yhteys ei onnistunut)");
+  // Kaikki palvelimelta tuleva teksti siivotaan (clean/short), jotta se ei voi aloittaa uutta riviä eikä sisältää ohjausmerkkejä.
+  lines.push(`mcp-doctor: ${clean(r.target)}`);
+  lines.push(r.server ? `Palvelin: ${short(r.server.name)} ${short(r.server.version)}, ${r.toolCount} työkalua` : "Palvelin: ei tietoja (yhteys ei onnistunut)");
   const sorted = [...r.findings].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
   for (const f of sorted) {
-    lines.push(`${LABEL[f.severity]} [${f.id}]${f.tool ? ` ${f.tool}:` : ""} ${f.message}`);
+    lines.push(`${LABEL[f.severity]} [${f.id}]${f.tool ? ` ${short(f.tool)}:` : ""} ${clean(f.message)}`);
   }
   if (r.smoke.length > 0) {
     lines.push("Savuajo:");
-    for (const s of r.smoke) lines.push(`  ${s.ok ? "OK    " : "VIRHE "} ${s.tool} (${s.ms} ms)`);
+    for (const s of r.smoke) lines.push(`  ${s.ok ? "OK    " : "VIRHE "} ${short(s.tool)} (${s.ms} ms)`);
   }
   const { errors, warnings, infos } = r.summary;
   lines.push(`Yhteenveto: ${errors} virhettä, ${warnings} varoitusta, ${infos} huomiota -> ${r.ok ? "OK" : "EPÄONNISTUI"}`);
