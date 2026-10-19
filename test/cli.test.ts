@@ -141,6 +141,14 @@ describe("CLI: HTTP-palvelin", () => {
     expect(await main(["--url", url, "--bearer-env", "DOCTOR_TOKEN", "--smoke", "s.json"], io)).toBe(0);
     expect(io.out).toContain("Palvelin: http-palvelin 9.9.9, 1 työkalua");
     expect(io.out).toMatch(/OK\s+ping/);
+    expect(io.err).not.toContain("salaamattomana"); // localhost: ei varoitusta
+  });
+
+  it("token salaamattomalla http-yhteydellä muualle kuin localhostiin: varoitus", async () => {
+    const io = makeIo({ DOCTOR_TOKEN: TOKEN });
+    await main(["--url", "http://palvelin.invalid/mcp", "--bearer-env", "DOCTOR_TOKEN", "--timeout-ms", "1000"], io);
+    expect(io.err).toContain("salaamattomana");
+    expect(io.err).not.toContain(TOKEN);
   });
 
   it("väärä token: yhteysvirhe (exit 1), tokenia ei tulosteta", async () => {
@@ -160,5 +168,16 @@ describe("CLI: HTTP-palvelin", () => {
     const io = makeIo({ DOCTOR_TOKEN: TOKEN });
     await main(["--url", `${url}?salainen=abc`, "--bearer-env", "DOCTOR_TOKEN"], io);
     expect(io.out).not.toContain("salainen");
+  });
+});
+
+describe("CLI: odottamaton virhe (exit 3)", () => {
+  it("sisäinen virhe palauttaa 3, ei käyttövirheen koodia 2", async () => {
+    const io = makeIo();
+    io.stdout = () => {
+      throw new Error("rikki");
+    };
+    expect(await main(good, io)).toBe(3);
+    expect(io.err).toContain("Odottamaton virhe: rikki");
   });
 });

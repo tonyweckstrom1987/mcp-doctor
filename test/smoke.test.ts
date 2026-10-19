@@ -23,6 +23,8 @@ describe("parseSmokeSpec", () => {
     ["expectError väärä tyyppi", '[{"tool":"x","expectError":"kyllä"}]'],
     ["maxMs nolla", '[{"tool":"x","maxMs":0}]'],
     ["maxMs merkkijono", '[{"tool":"x","maxMs":"5"}]'],
+    ["tyhjä taulukko", "[]"],
+    ["tyhjä calls", '{"calls":[]}'],
   ])("hylkää: %s", (_nimi, text) => {
     expect(() => parseSmokeSpec(text)).toThrow(UsageError);
   });

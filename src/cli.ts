@@ -11,6 +11,7 @@ import { VERSIO } from "./versio.js";
 export const EXIT_OK = 0;
 export const EXIT_FINDINGS = 1;
 export const EXIT_USAGE = 2;
+export const EXIT_INTERNAL = 3;
 
 export interface CliIo {
   stdout: (s: string) => void;
@@ -35,7 +36,7 @@ Valinnat:
   --version              tulosta versio
   --help                 tämä ohje
 
-Poistumiskoodit: 0 kunnossa, 1 löydöksiä (virhe, tai varoitus --strict-tilassa), 2 käyttö- tai tiedostovirhe.
+Poistumiskoodit: 0 kunnossa, 1 löydöksiä (virhe, tai varoitus --strict-tilassa), 2 käyttö- tai tiedostovirhe, 3 odottamaton sisäinen virhe.
 `;
 
 interface Args {
@@ -131,6 +132,9 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
         const token = io.env[bearerEnv];
         if (!token) throw new UsageError(`Ympäristömuuttuja ${bearerEnv} on tyhjä tai puuttuu`);
         requestInit = { headers: { Authorization: `Bearer ${token}` } };
+        if (parsed.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) {
+          io.stderr(`Varoitus: Bearer-token lähetetään salaamattomana (http) osoitteeseen ${parsed.hostname}. Käytä https:ää.\n`);
+        }
       }
       transport = new StreamableHTTPClientTransport(parsed, requestInit ? { requestInit } : undefined);
       target = `${parsed.origin}${parsed.pathname}`; // ei kyselyparametreja eikä tunnuksia tulosteisiin
@@ -162,7 +166,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       return EXIT_USAGE;
     }
     io.stderr(`Odottamaton virhe: ${err instanceof Error ? err.message : String(err)}\n`);
-    return EXIT_USAGE;
+    return EXIT_INTERNAL;
   }
 }
 

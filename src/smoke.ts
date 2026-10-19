@@ -19,6 +19,7 @@ export function parseSmokeSpec(text: string): SmokeCall[] {
   }
   const calls = Array.isArray(data) ? data : isRecord(data) ? data.calls : undefined;
   if (!Array.isArray(calls)) throw new UsageError('Savuajotiedoston pitää olla taulukko tai {"calls": [...]}');
+  if (calls.length === 0) throw new UsageError("Savuajotiedostossa ei ole yhtään kutsua: tyhjä savuajo raportoisi OK, vaikka mitään ei testattu");
   const out: SmokeCall[] = [];
   calls.forEach((c, i) => {
     const at = `calls[${i}]`;

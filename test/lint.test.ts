@@ -69,4 +69,21 @@ describe("lintTools", () => {
     expect(ids([{ ...good, outputSchema: { type: "array" } }])).toContain("OUTPUT_SCHEMA_NOT_OBJECT");
     expect(lintTools([{ ...good, outputSchema: { type: "object", properties: { sum: { type: "number" } } } }])).toEqual([]);
   });
+
+  it("required ei anna virhettä, kun kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta", () => {
+    for (const k of ["allOf", "anyOf", "oneOf", "$ref"]) {
+      const schema = { type: "object", [k]: k === "$ref" ? "#/$defs/x" : [{}], required: ["a"] };
+      expect(ids([{ ...good, inputSchema: schema }])).not.toContain("SCHEMA_REQUIRED_UNKNOWN");
+    }
+  });
+
+  it("required: perityt avaimet (constructor) eivät ole kenttiä", () => {
+    const schema = { type: "object", properties: { a: { type: "string", description: "kuvaus" } }, required: ["constructor"] };
+    expect(ids([{ ...good, inputSchema: schema }])).toContain("SCHEMA_REQUIRED_UNKNOWN");
+  });
+
+  it("boolean-skeema kentän määrittelynä on kelvollinen eikä anna varoitusta", () => {
+    const schema = { type: "object", properties: { a: true } };
+    expect(ids([{ ...good, inputSchema: schema }])).toEqual([]);
+  });
 });

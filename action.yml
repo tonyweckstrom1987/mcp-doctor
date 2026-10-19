@@ -4,7 +4,7 @@ author: tonyweckstrom1987
 
 inputs:
   command:
-    description: Käynnistyskomento stdio-palvelimelle (esim. "node dist/index.js"). Käytä tätä tai url-syötettä.
+    description: Käynnistyskomento stdio-palvelimelle (esim. "node dist/index.js"). Komento pilkotaan välilyönneistä, lainausmerkkejä ei tulkita (jos tarvitset niitä, kirjoita käynnistys skriptitiedostoon). Käytä tätä tai url-syötettä.
     required: false
     default: ""
   url:
@@ -68,6 +68,7 @@ runs:
         else
           [ -z "$INPUT_COMMAND" ] && { echo "Anna command tai url" >&2; exit 2; }
           [ -n "$INPUT_BEARER_ENV" ] && { echo "bearer-env koskee vain url-palvelinta" >&2; exit 2; }
+          set -f # ei tiedostonimilaajennusta (esim. env-names: "*")
           for name in $INPUT_ENV_NAMES; do
             [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "Virheellinen ympäristömuuttujan nimi: $name" >&2; exit 2; }
             args+=(--env "$name")

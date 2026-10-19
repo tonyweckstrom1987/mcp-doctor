@@ -1,7 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { lintTools } from "./lint.js";
 import { summarize } from "./report.js";
+import { short } from "./text.js";
 import { VERSIO } from "./versio.js";
 import type { Finding, Report, SmokeCall, SmokeResult, ToolLike } from "./types.js";
 
@@ -16,12 +18,6 @@ export interface DiagnoseOptions {
 }
 
 const MAX_PAGES = 50;
-const MAX_MESSAGE = 300;
-
-function short(text: string): string {
-  const one = text.replace(/\s+/g, " ").trim();
-  return one.length > MAX_MESSAGE ? one.slice(0, MAX_MESSAGE) + "…" : one;
-}
 
 function errText(e: unknown): string {
   return short(e instanceof Error ? e.message : String(e));
@@ -68,20 +64,33 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
 
     const caps = client.getServerCapabilities();
     const tools: ToolLike[] = [];
+    // Tosi, kun työkalulistaa ei saatu (kyky puuttuu tai tools/list epäonnistui): savuajon "työkalua ei löydy" ei silloin tarkoita, että työkalua ei ole.
+    let toolListMissing = false;
     if (!caps?.tools) {
+      toolListMissing = true;
       findings.push({ id: "TOOLS_CAPABILITY_MISSING", severity: "warning", message: "palvelin ei ilmoita tools-kykyä, työkaluja ei listata" });
     } else {
       let cursor: string | undefined;
       let pages = 0;
+      const seenCursors = new Set<string>();
       try {
         do {
           const res = await client.listTools(cursor ? { cursor } : undefined, { timeout: opts.timeoutMs });
           tools.push(...(res.tools as ToolLike[]));
           cursor = res.nextCursor;
           pages++;
+          if (cursor) {
+            if (seenCursors.has(cursor)) {
+              findings.push({ id: "TOOLS_PAGINATION_LOOP", severity: "warning", message: `palvelin palautti saman nextCursor-arvon uudelleen, työkalulistaus keskeytettiin ${pages} sivun jälkeen` });
+              cursor = undefined;
+              break;
+            }
+            seenCursors.add(cursor);
+          }
         } while (cursor && pages < MAX_PAGES);
         if (cursor) findings.push({ id: "TOOLS_PAGINATION_LIMIT", severity: "warning", message: `työkalulistaus keskeytettiin ${MAX_PAGES} sivun jälkeen` });
       } catch (e) {
+        toolListMissing = true;
         findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list epäonnistui: ${errText(e)}` });
       }
       if (tools.length === 0 && !findings.some((f) => f.id === "TOOLS_LIST_FAILED")) {
@@ -94,7 +103,10 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
     for (const call of opts.smoke ?? []) {
       const tool = byName.get(call.tool);
       if (!tool) {
-        findings.push({ id: "SMOKE_TOOL_NOT_FOUND", severity: "error", tool: call.tool, message: "savuajotiedostossa nimetty työkalu ei ole palvelimen listalla" });
+        const syy = toolListMissing
+          ? "työkalulistaa ei saatu (tools/list epäonnistui tai tools-kyky puuttuu), joten savuajon työkalua ei voitu etsiä"
+          : "savuajotiedostossa nimetty työkalu ei ole palvelimen listalla";
+        findings.push({ id: "SMOKE_TOOL_NOT_FOUND", severity: "error", tool: call.tool, message: syy });
         smokeResults.push({ tool: call.tool, ok: false, ms: 0 });
         continue;
       }
@@ -117,8 +129,15 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
         if (ms > call.maxMs) fail("SMOKE_SLOW", "warning", `vastaus kesti ${ms} ms (raja ${call.maxMs} ms)`);
         smokeResults.push({ tool: call.tool, ok, ms });
       } catch (e) {
-        fail("SMOKE_CALL_FAILED", "error", `kutsu epäonnistui: ${errText(e)}`);
-        smokeResults.push({ tool: call.tool, ok: false, ms: Date.now() - start });
+        // JSON-RPC-virhe (esim. -32602 Invalid params) on protokollatason tapa kertoa virheestä. Kun virhe odotetaan, se kelpaa;
+        // aikakatkaisu ja katkennut yhteys eivät ole odotettu virhe.
+        const protocolError = e instanceof McpError && e.code !== ErrorCode.RequestTimeout && e.code !== ErrorCode.ConnectionClosed;
+        if (protocolError && call.expectError) {
+          fail("SMOKE_EXPECTED_PROTOCOL_ERROR", "info", `odotettu virhe tuli JSON-RPC-virheenä (${e.code}), ei isError-vastauksena: ${errText(e)}`);
+        } else {
+          fail("SMOKE_CALL_FAILED", "error", `kutsu epäonnistui: ${errText(e)}`);
+        }
+        smokeResults.push({ tool: call.tool, ok, ms: Date.now() - start });
       }
     }
     return build(opts, server, tools.length, findings, smokeResults);

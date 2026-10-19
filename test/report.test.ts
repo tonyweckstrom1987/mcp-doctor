@@ -43,4 +43,17 @@ describe("raportti", () => {
     expect(parsed.version).toBe(1);
     expect(parsed.findings).toHaveLength(3);
   });
+
+  it("siivoaa palvelimelta tulevan tekstin: ei uusia rivejä eikä ohjausmerkkejä", () => {
+    const text = formatText(
+      report({
+        server: { name: "x\n::error::y", version: "1\x1b[2J" },
+        findings: [{ id: "T", severity: "warning", tool: "a\n::warning::b", message: "viesti\r\n::stop-commands::z" }],
+        smoke: [{ tool: "c\n::d", ok: true, ms: 1 }],
+        summary: { errors: 0, warnings: 1, infos: 0 },
+      }),
+    );
+    expect(text.split("\n").some((l) => l.startsWith("::"))).toBe(false);
+    expect(text).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/);
+  });
 });

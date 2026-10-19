@@ -1,5 +1,6 @@
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { describe, expect, it } from "vitest";
+import { formatText } from "../src/report.js";
 import { diagnose } from "../src/runner.js";
 import type { SmokeCall } from "../src/types.js";
 import { NODE, fixture } from "./helpers.js";
@@ -170,5 +171,54 @@ describe("diagnose: poikkeavat tools/list-tilanteet", () => {
     const f = r.findings.find((x) => x.id === "SMOKE_CALL_FAILED");
     expect(f?.message).toMatch(/structured/i);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("diagnose: palvelimelta tuleva teksti (turvallisuus)", () => {
+  it("rivinvaihdot ja escape-sekvenssit eivät pääse tekstitulosteeseen", async () => {
+    const r = await run("hostile-server.mjs");
+    const text = formatText(r);
+    expect(text.split("\n").some((l) => l.startsWith("::"))).toBe(false);
+    expect(text).not.toContain("\x1b");
+    expect(text).toContain("paha ::error::vaarennos"); // sisältö säilyy luettavana, rakenne ei
+    expect(r.findings.some((f) => f.tool === "a\n::warning::x")).toBe(true); // raakadata säilyy JSONissa
+  });
+});
+
+describe("diagnose: odotettu virhe protokollatasolla", () => {
+  it("JSON-RPC-virhe kelpaa, kun expectError on päällä (huomiona)", async () => {
+    const r = await run("protocol-error-server.mjs", [call("strict", {}, { expectError: true })]);
+    expect(r.findings.map((f) => f.id)).toEqual(["SMOKE_EXPECTED_PROTOCOL_ERROR"]);
+    expect(r.findings[0].severity).toBe("info");
+    expect(r.smoke[0].ok).toBe(true);
+    expect(r.ok).toBe(true);
+  });
+
+  it("JSON-RPC-virhe on virhe, kun expectError ei ole päällä", async () => {
+    const r = await run("protocol-error-server.mjs", [call("strict")]);
+    expect(r.findings.map((f) => f.id)).toEqual(["SMOKE_CALL_FAILED"]);
+    expect(r.smoke[0].ok).toBe(false);
+    expect(r.ok).toBe(false);
+  });
+
+  it("aikakatkaisu ei kelpaa odotettuna virheenä", async () => {
+    const r = await run("good-server.mjs", [call("slow", { ms: 6000 }, { expectError: true })], 1500);
+    expect(r.findings.map((f) => f.id)).toEqual(["SMOKE_CALL_FAILED"]);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("diagnose: työkalulistaus", () => {
+  it("toistuva nextCursor keskeyttää listauksen heti", async () => {
+    const r = await run("loop-cursor-server.mjs");
+    const ids = r.findings.map((f) => f.id);
+    expect(ids).toContain("TOOLS_PAGINATION_LOOP");
+    expect(ids).not.toContain("TOOLS_PAGINATION_LIMIT");
+  });
+
+  it("ilman tools-kykyä savuajon virhe kertoo, ettei listaa saatu", async () => {
+    const r = await run("no-tools-server.mjs", [call("x")]);
+    const f = r.findings.find((x) => x.id === "SMOKE_TOOL_NOT_FOUND");
+    expect(f?.message).toContain("työkalulistaa ei saatu");
   });
 });
