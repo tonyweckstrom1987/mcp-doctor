@@ -2,7 +2,7 @@
 
 Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja versiointi noudattaa [Semantic Versioningia](https://semver.org/lang/fi/).
 
-## [Julkaisematon]
+## [0.3.0] - 2026-10-19
 
 Korjaukset yöjonon koodikatselmoinnin (19.10.2026) löydöksistä.
 
