@@ -9,10 +9,16 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 - Syöteskeeman tarkistus laskeutuu sisäkkäisiin objekteihin ja taulukon alkioihin (8 tasoon asti, `$ref`-viittauksia ei seurata). Löydösviestissä on kentän polku, esim. `entities[].name` tai `opts.depth`.
 - `SCHEMA_ARRAY_ITEMS_MISSING` (varoitus): taulukkokentältä puuttuu `items`. Osa asiakkaista (esim. Gemini, OpenAI:n strict-tila) hylkää tällaisen skeeman ja samalla koko työkalun.
 - `SCHEMA_NESTED_DESC_MISSING` ja `SCHEMA_NESTED_PROP_UNTYPED` (huomio): sisäkkäisen kentän puuttuva kuvaus tai tyyppi. Ne ovat huomioita, joten `--strict`-ajot eivät kaadu niihin.
+- Demo-ohje [`docs/demo.md`](docs/demo.md) (suomi + englanti): pieni muistiinpanopalvelin ennen (`examples/demo/ennen.mjs`, viisi tyypillistä vikaa) ja jälkeen korjausten (`examples/demo/jalkeen.mjs`), savuajotiedosto ja skriptit `npm run demo:ennen` / `npm run demo:jalkeen`.
+- Testi `test/demo.test.ts` ajaa demon jokaisessa CI-ajossa, joten ohjeen tuloste ei vanhene huomaamatta (103 testiä).
 
 ### Muutettu
 
 - Sisäkkäisen objektin rikkinäinen `required` raportoidaan samoin kuin ylätasolla (`SCHEMA_REQUIRED_INVALID` / `SCHEMA_REQUIRED_UNKNOWN`, virhe). Aiemmin sisäkkäisiä skeemoja ei tarkistettu lainkaan, joten palvelin, joka meni ennen läpi, voi nyt saada virheen tai (`--strict`) items-varoituksen.
+
+### Korjattu
+
+- README: testimäärä päivitetty (103).
 
 ## [0.3.0] - 2026-10-19
 
