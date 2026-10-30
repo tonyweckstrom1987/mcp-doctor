@@ -6,6 +6,8 @@ Terveystarkastus MCP-palvelimelle. Yksi komento kertoo, toimiiko palvelimesi: va
 
 Miksi: MCP-asiakkaat (Claude Desktop, Cursor) antavat vähän tietoa, kun palvelin tai työkalun skeema on rikki. Työkalu vain puuttuu listalta tai malli käyttää sitä väärin, ja kehittäjä jää arvailemaan. mcp-doctor löytää ongelmat ennen asiakasta.
 
+**Demo 3 minuutissa:** [docs/demo.md](docs/demo.md) näyttää saman palvelimen ennen ja jälkeen korjausten (`npm run demo:ennen`, `npm run demo:jalkeen`). *Three-minute before/after demo, English included.*
+
 ## Asennus
 
 Ei asennusta: aja suoraan npm:stä (Node 22.12+ tai 24):
@@ -160,7 +162,7 @@ mcp-doctor on tarkoituksella pieni ja rajattu yhteen tehtävään: yksi komento 
 - **Savuajo vain nimeämillesi työkaluille:** työkaluja kutsutaan vain tiedostossa (`--smoke`) nimetyillä, itse määritellyillä argumenteilla. Mitään ei kutsuta arvaamalla.
 - **Ei verkkoa muualle:** työkalu puhuu vain osoittamallesi palvelimelle. Ei API-avaimia, ei tilastoja, ei tiliä.
 - **Eristetty Action:** stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat, ja Actionin syötteet eivät pääse komentoriville.
-- **Pieni ja testattu:** vähän koodia, 80 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
+- **Pieni ja testattu:** vähän koodia, 96 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
 
 ## Rajaukset
 
@@ -171,7 +173,7 @@ Ei tue vanhaa SSE-siirtoa eikä OAuth-kirjautumista. Tarkistaa työkalut, ei `re
 ```bash
 npm ci
 npm run typecheck
-npm test        # 80 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
+npm test        # 96 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
 ```
 
 Testit ajetaan oikeita MCP-palvelimia vastaan (`test/fixtures/`): kunnossa oleva, huonosti määritelty, väärää protokollaversiota puhuva, heti kaatuva sekä sivuttava. Ennen julkaisua koodiin tehtiin tahallisia rikkomisia (mutaatiot), (22 kappaletta), ja jokainen niistä kaatoi testin.

@@ -2,6 +2,17 @@
 
 Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja versiointi noudattaa [Semantic Versioningia](https://semver.org/lang/fi/).
 
+## [Unreleased]
+
+### Lisätty
+
+- Demo-ohje [`docs/demo.md`](docs/demo.md) (suomi + englanti): pieni muistiinpanopalvelin ennen (`examples/demo/ennen.mjs`, viisi tyypillistä vikaa) ja jälkeen korjausten (`examples/demo/jalkeen.mjs`), savuajotiedosto ja skriptit `npm run demo:ennen` / `npm run demo:jalkeen`.
+- Testi `test/demo.test.ts` ajaa demon jokaisessa CI-ajossa, joten ohjeen tuloste ei vanhene huomaamatta (96 testiä).
+
+### Korjattu
+
+- README: testimäärä päivitetty (80 -> 96).
+
 ## [0.3.0] - 2026-10-19
 
 Korjaukset yöjonon koodikatselmoinnin (19.10.2026) löydöksistä.
