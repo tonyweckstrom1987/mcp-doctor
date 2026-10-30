@@ -2,6 +2,18 @@
 
 Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja versiointi noudattaa [Semantic Versioningia](https://semver.org/lang/fi/).
 
+## [Julkaisematon]
+
+### Lisätty
+
+- Syöteskeeman tarkistus laskeutuu sisäkkäisiin objekteihin ja taulukon alkioihin (8 tasoon asti, `$ref`-viittauksia ei seurata). Löydösviestissä on kentän polku, esim. `entities[].name` tai `opts.depth`.
+- `SCHEMA_ARRAY_ITEMS_MISSING` (varoitus): taulukkokentältä puuttuu `items`. Osa asiakkaista (esim. Gemini, OpenAI:n strict-tila) hylkää tällaisen skeeman ja samalla koko työkalun.
+- `SCHEMA_NESTED_DESC_MISSING` ja `SCHEMA_NESTED_PROP_UNTYPED` (huomio): sisäkkäisen kentän puuttuva kuvaus tai tyyppi. Ne ovat huomioita, joten `--strict`-ajot eivät kaadu niihin.
+
+### Muutettu
+
+- Sisäkkäisen objektin rikkinäinen `required` raportoidaan samoin kuin ylätasolla (`SCHEMA_REQUIRED_INVALID` / `SCHEMA_REQUIRED_UNKNOWN`, virhe). Aiemmin sisäkkäisiä skeemoja ei tarkistettu lainkaan, joten palvelin, joka meni ennen läpi, voi nyt saada virheen tai (`--strict`) items-varoituksen.
+
 ## [0.3.0] - 2026-10-19
 
 Korjaukset yöjonon koodikatselmoinnin (19.10.2026) löydöksistä.

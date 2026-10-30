@@ -20,13 +20,36 @@ function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Fi
     out.push(find(kind === "input" ? "SCHEMA_NOT_OBJECT" : "OUTPUT_SCHEMA_NOT_OBJECT", "error", tool, `${label} puuttuu tai sen type ei ole "object"`));
     return out;
   }
-  const props = isRecord(schema.properties) ? schema.properties : undefined;
   if (kind === "output") return out;
+  out.push(...lintObject(tool, schema, "", 0));
+  return out;
+}
 
+const MAX_DEPTH = 8;
+
+function hasType(def: Record<string, unknown>, t: string): boolean {
+  return def.type === t || (Array.isArray(def.type) && def.type.includes(t));
+}
+
+/** Polku löydösviestiin: ylätaso 'nimi', sisäkkäinen 'nimi.ala', taulukon alkio 'nimi[].ala'. */
+function join(prefix: string, name: string): string {
+  return prefix === "" ? name : `${prefix}.${name}`;
+}
+
+/**
+ * Tarkistaa objektiskeeman required-listan ja kentät. Ylätason (prefix "") löydökset ovat kuten ennen;
+ * sisäkkäisten objektien ja taulukon alkioiden puuttuvat kuvaukset ja tyypit ovat huomioita (info),
+ * jotta --strict-ajot eivät kaadu uusiin tarkistuksiin. Rakenteelliset virheet ovat yhtä vakavia tasosta riippumatta.
+ */
+function lintObject(tool: string, schema: Record<string, unknown>, prefix: string, depth: number): Finding[] {
+  const out: Finding[] = [];
+  const nested = prefix !== "";
+  const where = nested ? ` (objektissa '${prefix}')` : "";
+  const props = isRecord(schema.properties) ? schema.properties : undefined;
   const required = schema.required;
   if (required !== undefined) {
     if (!Array.isArray(required) || required.some((r) => typeof r !== "string")) {
-      out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, "required ei ole merkkijonolista"));
+      out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, `required ei ole merkkijonolista${where}`));
     } else {
       // Kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta: silloin properties-lista ei ole koko totuus, eikä puuttuvaa kenttää voi tuomita.
       const composed = ["allOf", "anyOf", "oneOf", "$ref"].some((k) => k in schema);
@@ -34,25 +57,46 @@ function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Fi
         // Object.hasOwn: perityt avaimet (esim. "constructor") eivät ole kenttiä.
         if (!props || !Object.hasOwn(props, r)) {
           if (composed) continue;
-          out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `pakollinen kenttä '${r}' ei ole properties-listassa`));
+          out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `pakollinen kenttä '${join(prefix, r)}' ei ole properties-listassa`));
         }
       }
     }
   }
   if (props) {
     for (const [name, def] of Object.entries(props)) {
+      const path = join(prefix, name);
       if (typeof def === "boolean") continue; // true/false on kelvollinen JSON Schema (kaikki sallittu / ei mitään sallittu)
       if (!isRecord(def)) {
-        out.push(find("SCHEMA_PROP_UNTYPED", "warning", tool, `kentän '${name}' skeema ei ole objekti`));
+        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `kentän '${path}' skeema ei ole objekti`));
         continue;
       }
       if (!TYPE_KEYS.some((k) => k in def)) {
-        out.push(find("SCHEMA_PROP_UNTYPED", "warning", tool, `kentällä '${name}' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä`));
+        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `kentällä '${path}' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä`));
       }
       if (typeof def.description !== "string" || def.description.trim() === "") {
-        out.push(find("SCHEMA_PROP_DESC_MISSING", "warning", tool, `kentältä '${name}' puuttuu kuvaus`));
+        out.push(find(nested ? "SCHEMA_NESTED_DESC_MISSING" : "SCHEMA_PROP_DESC_MISSING", nested ? "info" : "warning", tool, `kentältä '${path}' puuttuu kuvaus`));
       }
+      out.push(...lintValue(tool, def, path, depth + 1));
     }
+  }
+  return out;
+}
+
+/** Laskeutuu kentän skeemaan: sisäkkäiset objektit ja taulukon alkiot. $ref-viittauksia ei seurata. */
+function lintValue(tool: string, def: Record<string, unknown>, path: string, depth: number): Finding[] {
+  if (depth > MAX_DEPTH) return [];
+  const out: Finding[] = [];
+  if (hasType(def, "array")) {
+    const items = def.items;
+    if (items === undefined && def.prefixItems === undefined) {
+      // Esim. Gemini hylkää koko työkalulistan, jos taulukolta puuttuu items; OpenAI:n strict-tila samoin.
+      out.push(find("SCHEMA_ARRAY_ITEMS_MISSING", "warning", tool, `taulukkokentältä '${path}' puuttuu items: alkioiden tyyppi on tuntematon, ja osa asiakkaista hylkää skeeman`));
+    } else if (isRecord(items)) {
+      out.push(...lintValue(tool, items, `${path}[]`, depth + 1));
+    }
+  }
+  if (isRecord(def.properties) || def.required !== undefined) {
+    out.push(...lintObject(tool, def, path, depth));
   }
   return out;
 }
