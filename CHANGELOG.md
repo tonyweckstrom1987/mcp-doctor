@@ -14,6 +14,11 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 - Sisäkkäisen objektin rikkinäinen `required` raportoidaan samoin kuin ylätasolla (`SCHEMA_REQUIRED_INVALID` / `SCHEMA_REQUIRED_UNKNOWN`, virhe). Aiemmin sisäkkäisiä skeemoja ei tarkistettu lainkaan, joten palvelin, joka meni ennen läpi, voi nyt saada virheen tai (`--strict`) items-varoituksen.
 
+### Korjattu
+
+- Turvallisuus: stdio-komennon salaiselta näyttävät argumentit peitetään raportin kohderiviltä (teksti ja JSON). Esim. `--token xyz` -> `--token ***`, `--api-key=xyz`, `GITHUB_TOKEN=xyz` ja URL:n tunnukset ja kyselyparametrit (`https://***@host/x?***`). Palvelin käynnistetään edelleen alkuperäisillä argumenteilla. Aiemmin komentoriville annettu token päätyi CI-lokiin, vaikka HTTP-polussa kyselyparametrit jo jätettiin pois.
+- Odottamattoman virheen viesti siivotaan ja lyhennetään kuten muu palvelimelta tuleva teksti, joten se ei voi aloittaa uutta riviä (esim. `::warning::`) eikä lähettää escape-sekvenssejä.
+
 ## [0.3.0] - 2026-10-19
 
 Korjaukset yöjonon koodikatselmoinnin (19.10.2026) löydöksistä.
