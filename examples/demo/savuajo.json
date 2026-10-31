@@ -1,0 +1,7 @@
+{
+  "calls": [
+    { "tool": "add_note", "arguments": { "text": "Matematiikan koe 20.11.", "tags": ["koulu"] } },
+    { "tool": "search_notes", "arguments": { "query": "koe" } },
+    { "tool": "delete_note", "arguments": { "id": 999 }, "expectError": true }
+  ]
+}

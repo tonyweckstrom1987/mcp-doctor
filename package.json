@@ -35,7 +35,9 @@
     "prepare": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepublishOnly": "npm run typecheck && npm test",
+    "demo:ennen": "node dist/bin.js --strict --smoke examples/demo/savuajo.json -- node examples/demo/ennen.mjs",
+    "demo:jalkeen": "node dist/bin.js --strict --smoke examples/demo/savuajo.json -- node examples/demo/jalkeen.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1"
