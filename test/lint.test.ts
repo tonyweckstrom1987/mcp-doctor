@@ -86,4 +86,66 @@ describe("lintTools", () => {
     const schema = { type: "object", properties: { a: true } };
     expect(ids([{ ...good, inputSchema: schema }])).toEqual([]);
   });
+
+  describe("sisäkkäiset skeemat", () => {
+    // Muoto kuten server-memoryn create_entities: taulukko objekteja, joiden kentät on kuvattu.
+    const entities = (item: Record<string, unknown>) => ({
+      ...good,
+      inputSchema: { type: "object", properties: { entities: { type: "array", description: "Lisättävät entiteetit", items: item } }, required: ["entities"] },
+    });
+    const okItem = {
+      type: "object",
+      properties: { name: { type: "string", description: "Nimi" }, tags: { type: "array", items: { type: "string" }, description: "Tunnisteet" } },
+      required: ["name"],
+    };
+
+    it("hyvin kuvattu sisäkkäinen rakenne ei anna löydöksiä", () => {
+      expect(lintTools([entities(okItem)])).toEqual([]);
+    });
+
+    it("taulukon alkion kentän puuttuva kuvaus ja tyyppi ovat huomioita polun kanssa", () => {
+      const f = lintTools([entities({ type: "object", properties: { name: { type: "string" }, extra: {} } })]);
+      const desc = f.filter((x) => x.id === "SCHEMA_NESTED_DESC_MISSING");
+      expect(desc.map((x) => x.message)).toEqual(["kentältä 'entities[].name' puuttuu kuvaus", "kentältä 'entities[].extra' puuttuu kuvaus"]);
+      expect(f.find((x) => x.id === "SCHEMA_NESTED_PROP_UNTYPED")?.message).toContain("'entities[].extra'");
+      expect(f.every((x) => x.severity === "info")).toBe(true);
+    });
+
+    it("sisäkkäisen objektin tuntematon required-kenttä on virhe", () => {
+      const f = lintTools([entities({ ...okItem, required: ["name", "nimi"] })]);
+      expect(f).toHaveLength(1);
+      expect(f[0]).toMatchObject({ id: "SCHEMA_REQUIRED_UNKNOWN", severity: "error" });
+      expect(f[0].message).toContain("'entities[].nimi'");
+      expect(ids([entities({ ...okItem, required: "name" })])).toEqual(["SCHEMA_REQUIRED_INVALID"]);
+    });
+
+    it("taulukko ilman items-määrittelyä on varoitus ylä- ja alatasolla", () => {
+      const top = lintTools([{ ...good, inputSchema: { type: "object", properties: { ids: { type: "array", description: "Tunnisteet" } } } }]);
+      expect(top).toEqual([expect.objectContaining({ id: "SCHEMA_ARRAY_ITEMS_MISSING", severity: "warning" })]);
+      expect(top[0].message).toContain("'ids'");
+      const deep = lintTools([entities({ ...okItem, properties: { ...okItem.properties, tags: { type: "array", description: "Tunnisteet" } } })]);
+      expect(deep.map((x) => x.id)).toEqual(["SCHEMA_ARRAY_ITEMS_MISSING"]);
+      expect(deep[0].message).toContain("'entities[].tags'");
+      // type-lista ja prefixItems tunnistetaan
+      expect(ids([{ ...good, inputSchema: { type: "object", properties: { x: { type: ["array", "null"], description: "x" } } } }])).toEqual(["SCHEMA_ARRAY_ITEMS_MISSING"]);
+      expect(ids([{ ...good, inputSchema: { type: "object", properties: { x: { type: "array", description: "x", prefixItems: [{ type: "string" }] } } } }])).toEqual([]);
+    });
+
+    it("sisäkkäinen objekti ilman taulukkoa tarkistetaan pistepolulla", () => {
+      const schema = { type: "object", properties: { opts: { type: "object", description: "Valinnat", properties: { depth: { type: "integer" } } } } };
+      expect(lintTools([{ ...good, inputSchema: schema }]).map((x) => x.message)).toEqual(["kentältä 'opts.depth' puuttuu kuvaus"]);
+    });
+
+    it("syvä rakenne katkaistaan eikä kaada tarkistusta", () => {
+      let node: Record<string, unknown> = { type: "string" };
+      for (let i = 0; i < 50; i++) node = { type: "object", description: "taso", properties: { a: node } };
+      const f = lintTools([{ ...good, inputSchema: { type: "object", properties: { root: node } } }]);
+      expect(f.filter((x) => x.severity !== "info")).toEqual([]);
+      expect(f.length).toBeLessThan(15);
+    });
+
+    it("tulosskeeman sisältöä ei tarkisteta (kuten ennenkin)", () => {
+      expect(ids([{ ...good, outputSchema: { type: "object", properties: { x: { type: "array" } } } }])).toEqual([]);
+    });
+  });
 });
