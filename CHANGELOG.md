@@ -10,7 +10,7 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 - `SCHEMA_ARRAY_ITEMS_MISSING` (varoitus): taulukkokentältä puuttuu `items`. Osa asiakkaista (esim. Gemini, OpenAI:n strict-tila) hylkää tällaisen skeeman ja samalla koko työkalun.
 - `SCHEMA_NESTED_DESC_MISSING` ja `SCHEMA_NESTED_PROP_UNTYPED` (huomio): sisäkkäisen kentän puuttuva kuvaus tai tyyppi. Ne ovat huomioita, joten `--strict`-ajot eivät kaadu niihin.
 - Demo-ohje [`docs/demo.md`](docs/demo.md) (suomi + englanti): pieni muistiinpanopalvelin ennen (`examples/demo/ennen.mjs`, viisi tyypillistä vikaa) ja jälkeen korjausten (`examples/demo/jalkeen.mjs`), savuajotiedosto ja skriptit `npm run demo:ennen` / `npm run demo:jalkeen`.
-- Testi `test/demo.test.ts` ajaa demon jokaisessa CI-ajossa, joten ohjeen tuloste ei vanhene huomaamatta (103 testiä).
+- Testi `test/demo.test.ts` ajaa demon jokaisessa CI-ajossa, joten ohjeen tuloste ei vanhene huomaamatta (120 testiä).
 
 ### Muutettu
 
@@ -18,7 +18,9 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 ### Korjattu
 
-- README: testimäärä päivitetty (103).
+- Turvallisuus: stdio-komennon salaiselta näyttävät argumentit peitetään raportin kohderiviltä (teksti ja JSON). Esim. `--token xyz` -> `--token ***`, `--api-key=xyz`, `GITHUB_TOKEN=xyz` ja URL:n tunnukset ja kyselyparametrit (`https://***@host/x?***`). Palvelin käynnistetään edelleen alkuperäisillä argumenteilla. Aiemmin komentoriville annettu token päätyi CI-lokiin, vaikka HTTP-polussa kyselyparametrit jo jätettiin pois.
+- Odottamattoman virheen viesti siivotaan ja lyhennetään kuten muu palvelimelta tuleva teksti, joten se ei voi aloittaa uutta riviä (esim. `::warning::`) eikä lähettää escape-sekvenssejä.
+- README: testimäärä päivitetty (120).
 
 ## [0.3.0] - 2026-10-19
 

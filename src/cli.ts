@@ -2,9 +2,11 @@ import { readFileSync } from "node:fs";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { redactArgs } from "./redact.js";
 import { formatJson, formatText } from "./report.js";
 import { diagnose } from "./runner.js";
 import { parseSmokeSpec } from "./smoke.js";
+import { short } from "./text.js";
 import { UsageError } from "./types.js";
 import { VERSIO } from "./versio.js";
 
@@ -154,7 +156,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       });
       stderrTail = () => tail;
       transport = stdio;
-      target = args.command.join(" ");
+      target = redactArgs(args.command).join(" "); // salaiselta näyttävät argumentit peitetään tulosteista
     }
 
     const report = await diagnose({ transport, target, smoke, timeoutMs, strict: args.bools.has("strict"), stderrTail });
@@ -165,7 +167,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       io.stderr(`Virhe: ${err.message}\n\n${USAGE}`);
       return EXIT_USAGE;
     }
-    io.stderr(`Odottamaton virhe: ${err instanceof Error ? err.message : String(err)}\n`);
+    io.stderr(`Odottamaton virhe: ${short(err instanceof Error ? err.message : String(err))}\n`);
     return EXIT_INTERNAL;
   }
 }

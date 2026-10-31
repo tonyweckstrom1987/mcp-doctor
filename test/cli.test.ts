@@ -171,6 +171,19 @@ describe("CLI: HTTP-palvelin", () => {
   });
 });
 
+describe("CLI: stdio-kohde ei vuoda salaisuuksia", () => {
+  it("komentorivin token ei näy teksti- eikä JSON-raportissa, mutta palvelin saa sen", async () => {
+    const argv = ["--", NODE, fixture("good-server.mjs"), "--token", "SALAINEN_ARVO_42"];
+    const io = makeIo();
+    expect(await main(argv, io)).toBe(0);
+    expect(io.out).toContain("--token ***");
+    expect(io.out).not.toContain("SALAINEN_ARVO_42");
+    const json = makeIo();
+    await main(["--json", ...argv], json);
+    expect(json.out).not.toContain("SALAINEN_ARVO_42");
+  });
+});
+
 describe("CLI: odottamaton virhe (exit 3)", () => {
   it("sisäinen virhe palauttaa 3, ei käyttövirheen koodia 2", async () => {
     const io = makeIo();
@@ -179,5 +192,14 @@ describe("CLI: odottamaton virhe (exit 3)", () => {
     };
     expect(await main(good, io)).toBe(3);
     expect(io.err).toContain("Odottamaton virhe: rikki");
+  });
+
+  it("virheviestin ohjausmerkit siivotaan (ei uutta riviä esim. ::warning::-komennolle)", async () => {
+    const io = makeIo();
+    io.stdout = () => {
+      throw new Error("rikki\n::warning::huijaus\u001b[31m");
+    };
+    expect(await main(good, io)).toBe(3);
+    expect(io.err).toBe("Odottamaton virhe: rikki ::warning::huijaus [31m\n");
   });
 });
