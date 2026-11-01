@@ -33,6 +33,8 @@ Valinnat:
   --json                 tulosta raportti JSONina
   --strict               varoituksetkin kaatavat ajon (exit 1)
   --timeout-ms <luku>    yksittäisen pyynnön aikakatkaisu, oletus 10000
+  --total-timeout-ms <luku>
+                         koko tarkastuksen aikaraja (kättely, listaus ja savuajo), oletus ei rajaa
   --env <NIMI>           välitä ympäristömuuttuja stdio-palvelimelle (toistettava)
   --bearer-env <NIMI>    lue HTTP-palvelimen Bearer-token tästä ympäristömuuttujasta
   --version              tulosta versio
@@ -48,7 +50,7 @@ interface Args {
 }
 
 const BOOL_FLAGS = new Set(["json", "strict", "help", "version"]);
-const VALUE_FLAGS = new Set(["smoke", "timeout-ms", "env", "bearer-env", "url"]);
+const VALUE_FLAGS = new Set(["smoke", "timeout-ms", "total-timeout-ms", "env", "bearer-env", "url"]);
 
 function parseArgs(argv: string[]): Args {
   const flags = new Map<string, string[]>();
@@ -103,6 +105,9 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
     const timeoutRaw = one(args, "timeout-ms");
     const timeoutMs = timeoutRaw === undefined ? 10000 : Number(timeoutRaw);
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new UsageError("--timeout-ms täytyy olla positiivinen kokonaisluku");
+    const totalRaw = one(args, "total-timeout-ms");
+    const totalTimeoutMs = totalRaw === undefined ? undefined : Number(totalRaw);
+    if (totalTimeoutMs !== undefined && (!Number.isInteger(totalTimeoutMs) || totalTimeoutMs < 1)) throw new UsageError("--total-timeout-ms täytyy olla positiivinen kokonaisluku");
 
     const smokePath = one(args, "smoke");
     let smoke;
@@ -159,7 +164,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       target = redactArgs(args.command).join(" "); // salaiselta näyttävät argumentit peitetään tulosteista
     }
 
-    const report = await diagnose({ transport, target, smoke, timeoutMs, strict: args.bools.has("strict"), stderrTail });
+    const report = await diagnose({ transport, target, smoke, timeoutMs, totalTimeoutMs, strict: args.bools.has("strict"), stderrTail });
     io.stdout(args.bools.has("json") ? formatJson(report) : formatText(report));
     return report.ok ? EXIT_OK : EXIT_FINDINGS;
   } catch (err) {

@@ -79,6 +79,7 @@ Yhteenveto: 3 virhettä, 4 varoitusta, 0 huomiota -> EPÄONNISTUI
 | `--json` | raportti JSONina |
 | `--strict` | varoituksetkin kaatavat ajon |
 | `--timeout-ms <luku>` | yksittäisen pyynnön aikakatkaisu, oletus 10000 |
+| `--total-timeout-ms <luku>` | koko tarkastuksen aikaraja (kättely, listaus ja savuajo yhteensä), oletus ei rajaa. Jokaisen pyynnön aikakatkaisu on pienempi tästä jäljellä olevasta ajasta ja `--timeout-ms`:stä. Rajan ylittyessä loput savuajon kutsut ohitetaan ja tulee `TOTAL_TIMEOUT`. |
 | `--env <NIMI>` | välittää ympäristömuuttujan stdio-palvelimelle (toistettava) |
 | `--bearer-env <NIMI>` | HTTP-palvelimen Bearer-token tästä muuttujasta |
 | `--version` | tulostaa version |
@@ -112,6 +113,7 @@ Poistumiskoodit: `0` kunnossa, `1` löydöksiä (virhe, tai varoitus `--strict`-
 | `SMOKE_CALL_FAILED` | virhe | kutsu epäonnistui (aikakatkaisu, protokollavirhe, `outputSchema`-vaatimus rikottu) |
 | `SMOKE_EMPTY_RESULT` | varoitus | tulos on tyhjä |
 | `SMOKE_SLOW` | varoitus | vastaus kesti yli `maxMs` (oletus 5000) |
+| `TOTAL_TIMEOUT` | virhe | `--total-timeout-ms` ylittyi; viestissä kerrotaan, mikä vaihe keskeytyi ja mitkä savuajon kutsut ohitettiin |
 
 ## Savuajo
 
@@ -165,7 +167,7 @@ mcp-doctor on tarkoituksella pieni ja rajattu yhteen tehtävään: yksi komento 
 - **Savuajo vain nimeämillesi työkaluille:** työkaluja kutsutaan vain tiedostossa (`--smoke`) nimetyillä, itse määritellyillä argumenteilla. Mitään ei kutsuta arvaamalla.
 - **Ei verkkoa muualle:** työkalu puhuu vain osoittamallesi palvelimelle. Ei API-avaimia, ei tilastoja, ei tiliä.
 - **Eristetty Action:** stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat, ja Actionin syötteet eivät pääse komentoriville.
-- **Pieni ja testattu:** vähän koodia, 128 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
+- **Pieni ja testattu:** vähän koodia, 137 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
 
 ## Rajaukset
 
@@ -176,7 +178,7 @@ Ei tue vanhaa SSE-siirtoa eikä OAuth-kirjautumista. Tarkistaa työkalut, ei `re
 ```bash
 npm ci
 npm run typecheck
-npm test        # 128 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
+npm test        # 137 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
 ```
 
 Testit ajetaan oikeita MCP-palvelimia vastaan (`test/fixtures/`): kunnossa oleva, huonosti määritelty, väärää protokollaversiota puhuva, heti kaatuva sekä sivuttava. Ennen julkaisua koodiin tehtiin tahallisia rikkomisia (mutaatiot), (22 kappaletta), ja jokainen niistä kaatoi testin.
