@@ -30,12 +30,12 @@ describe("raportti", () => {
     expect(text.indexOf("C_ERR")).toBeLessThan(text.indexOf("B_WARN"));
     expect(text.indexOf("B_WARN")).toBeLessThan(text.indexOf("A_INFO"));
     expect(text).toContain("[B_WARN] t: varoitus");
-    expect(text).toContain("Yhteenveto: 1 virhettä, 1 varoitusta, 1 huomiota -> EPÄONNISTUI");
+    expect(text).toContain("Summary: errors 1, warnings 1, info 1 -> FAILED");
     expect(text).toMatch(/OK\s+t \(7 ms\)/);
   });
 
   it("tekstiraportti kertoo, ettei palvelimen tietoja ole yhteysvirheessä", () => {
-    expect(formatText(report({ server: null, toolCount: 0 }))).toContain("ei tietoja");
+    expect(formatText(report({ server: null, toolCount: 0 }))).toContain("no information");
   });
 
   it("JSON on kelvollista ja sisältää version", () => {

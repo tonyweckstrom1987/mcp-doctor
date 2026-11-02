@@ -8,39 +8,39 @@ branding:
 
 inputs:
   command:
-    description: Käynnistyskomento stdio-palvelimelle (esim. "node dist/index.js"). Komento pilkotaan välilyönneistä, lainausmerkkejä ei tulkita (jos tarvitset niitä, kirjoita käynnistys skriptitiedostoon). Käytä tätä tai url-syötettä.
+    description: Start command for a stdio server (e.g. "node dist/index.js"). The command is split on spaces and quotes are not interpreted (if you need them, put the start command in a script file). Use this or the url input.
     required: false
     default: ""
   url:
-    description: Streamable HTTP -palvelimen osoite (esim. http://localhost:3000/mcp). Käytä tätä tai command-syötettä.
+    description: Address of a Streamable HTTP server (e.g. http://localhost:3000/mcp). Use this or the command input.
     required: false
     default: ""
   smoke:
-    description: Polku savuajotiedostoon (JSON). Vain siinä nimetyt työkalut kutsutaan.
+    description: Path to a smoke file (JSON). Only the tools named in it are called.
     required: false
     default: ""
   strict:
-    description: 'Jos "true", varoituksetkin kaatavat ajon.'
+    description: 'If "true", warnings fail the run too.'
     required: false
     default: "false"
   timeout-ms:
-    description: Yksittäisen pyynnön aikakatkaisu millisekunteina.
+    description: Timeout for a single request in milliseconds.
     required: false
     default: "10000"
   env-names:
-    description: Välilyönnillä erotetut ympäristömuuttujien nimet, jotka välitetään stdio-palvelimelle (aseta arvot action-askeleen env-lohkossa). Muita muuttujia palvelin ei näe.
+    description: Space-separated names of environment variables passed to the stdio server (set the values in the env block of the action step). The server sees no other variables.
     required: false
     default: ""
   auth:
-    description: 'Jos "true" ja url on annettu, tarkistetaan myös OAuth-asetukset (401, metatiedot, PKCE, refresh_token) kirjautumatta.'
+    description: 'If "true" and url is given, also checks the OAuth setup (401, metadata, PKCE, refresh_token) without logging in.'
     required: false
     default: "false"
   max-tokens:
-    description: Tokenimittarin raja. Jos työkalumäärittelyjen arvioitu yhteiskoko ylittää rajan, ajo kaatuu. Tyhjä = ei rajaa, koko raportoidaan silti.
+    description: Token budget. The run fails if the estimated total size of the tool definitions exceeds it. Empty = no budget; the size is reported anyway.
     required: false
     default: ""
   bearer-env:
-    description: Ympäristömuuttujan nimi, josta HTTP-palvelimen Bearer-token luetaan (aseta muuttuja tämän askeleen env-lohkossa secretistä).
+    description: Name of the environment variable holding the Bearer token for the HTTP server (set it from a secret in the env block of this step).
     required: false
     default: ""
 
@@ -51,12 +51,12 @@ runs:
       with:
         node-version: 24
 
-    - name: Asenna ja käännä mcp-doctor
+    - name: Install and build mcp-doctor
       shell: bash
       working-directory: ${{ github.action_path }}
       run: npm ci --no-audit --no-fund
 
-    - name: Aja mcp-doctor
+    - name: Run mcp-doctor
       shell: bash
       env:
         INPUT_COMMAND: ${{ inputs.command }}
@@ -76,18 +76,18 @@ runs:
         args+=(--timeout-ms "$INPUT_TIMEOUT")
         [ -n "$INPUT_MAX_TOKENS" ] && args+=(--max-tokens "$INPUT_MAX_TOKENS")
         if [ -n "$INPUT_URL" ]; then
-          [ -n "$INPUT_COMMAND" ] && { echo "Anna joko command tai url, ei molempia" >&2; exit 2; }
-          [ -n "$INPUT_ENV_NAMES" ] && { echo "env-names koskee vain command-palvelinta" >&2; exit 2; }
+          [ -n "$INPUT_COMMAND" ] && { echo "Give either command or url, not both" >&2; exit 2; }
+          [ -n "$INPUT_ENV_NAMES" ] && { echo "env-names applies only to command servers" >&2; exit 2; }
           [ -n "$INPUT_BEARER_ENV" ] && args+=(--bearer-env "$INPUT_BEARER_ENV")
           [ "$INPUT_AUTH" = "true" ] && args+=(--auth)
           args+=(--url "$INPUT_URL")
         else
-          [ -z "$INPUT_COMMAND" ] && { echo "Anna command tai url" >&2; exit 2; }
-          [ -n "$INPUT_BEARER_ENV" ] && { echo "bearer-env koskee vain url-palvelinta" >&2; exit 2; }
-          [ "$INPUT_AUTH" = "true" ] && { echo "auth koskee vain url-palvelinta" >&2; exit 2; }
+          [ -z "$INPUT_COMMAND" ] && { echo "Give command or url" >&2; exit 2; }
+          [ -n "$INPUT_BEARER_ENV" ] && { echo "bearer-env applies only to url servers" >&2; exit 2; }
+          [ "$INPUT_AUTH" = "true" ] && { echo "auth applies only to url servers" >&2; exit 2; }
           set -f # ei tiedostonimilaajennusta (esim. env-names: "*")
           for name in $INPUT_ENV_NAMES; do
-            [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "Virheellinen ympäristömuuttujan nimi: $name" >&2; exit 2; }
+            [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "Invalid environment variable name: $name" >&2; exit 2; }
             args+=(--env "$name")
           done
           read -ra cmd <<< "$INPUT_COMMAND"

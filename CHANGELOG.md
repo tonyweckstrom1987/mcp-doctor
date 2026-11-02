@@ -4,6 +4,10 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 ## [Julkaisematon]
 
+### Muutettu
+
+- Raportti, löydösviestit, `--help`, käyttövirheet ja actionin syötekuvaukset ovat nyt englanniksi (npm- ja Marketplace-käyttäjät ovat kansainvälisiä). Löydöskoodit, JSON-rakenne ja poistumiskoodit eivät muutu; jos skripti vertaa tekstitulosteen tai `message`-kentän sanoja, vaihda se vertaamaan löydöskoodia (`id`).
+
 ## [0.5.0] - 2026-11-02
 
 ### Lisätty

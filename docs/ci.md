@@ -51,7 +51,7 @@ Koodi `1` tarkoittaa, että tarkastettavassa palvelimessa on jotain korjattavaa.
 
 ## `--strict`
 
-Oletuksena vain **virheet** (`VIRHE`) kaatavat ajon. **Varoitukset** (`VAROITUS`) näkyvät raportissa, mutta poistumiskoodi on silti `0`. Huomiot (`HUOMIO`) eivät kaada ajoa koskaan.
+Oletuksena vain **virheet** (`ERROR`) kaatavat ajon. **Varoitukset** (`WARNING`) näkyvät raportissa, mutta poistumiskoodi on silti `0`. Huomiot (`HUOMIO`) eivät kaada ajoa koskaan.
 
 `--strict` (Actionissa `strict: "true"`) tekee varoituksista kaatavia: jo yksi varoitus antaa koodin `1`. Käytä sitä, kun haluat estää kuvausten ja skeemojen rapistumisen. Aloita ilman sitä, jos olemassa olevassa palvelimessa on paljon varoituksia, ja ota se käyttöön kun ne on korjattu.
 
@@ -59,12 +59,12 @@ Sama palvelin, jossa on yksi varoitus (kentältä puuttuu kuvaus):
 
 ```
 $ mcp-doctor -- node palvelin.mjs
-VAROITUS [SCHEMA_PROP_DESC_MISSING] hae: kentältä 'id' puuttuu kuvaus
-Yhteenveto: 0 virhettä, 1 varoitusta, 0 huomiota -> OK            # exit 0
+WARNING [SCHEMA_PROP_DESC_MISSING] hae: field 'id' has no description
+Summary: errors 0, warnings 1, info 0 -> OK            # exit 0
 
 $ mcp-doctor --strict -- node palvelin.mjs
-VAROITUS [SCHEMA_PROP_DESC_MISSING] hae: kentältä 'id' puuttuu kuvaus
-Yhteenveto: 0 virhettä, 1 varoitusta, 0 huomiota -> EPÄONNISTUI   # exit 1
+WARNING [SCHEMA_PROP_DESC_MISSING] hae: field 'id' has no description
+Summary: errors 0, warnings 1, info 0 -> FAILED   # exit 1
 ```
 
 ## Kokeile paikallisesti ennen CI:tä

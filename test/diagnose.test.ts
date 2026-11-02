@@ -219,6 +219,6 @@ describe("diagnose: työkalulistaus", () => {
   it("ilman tools-kykyä savuajon virhe kertoo, ettei listaa saatu", async () => {
     const r = await run("no-tools-server.mjs", [call("x")]);
     const f = r.findings.find((x) => x.id === "SMOKE_TOOL_NOT_FOUND");
-    expect(f?.message).toContain("työkalulistaa ei saatu");
+    expect(f?.message).toContain("no tool list available");
   });
 });

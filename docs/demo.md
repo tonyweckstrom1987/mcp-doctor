@@ -28,19 +28,19 @@ npm run demo:ennen
 
 ```
 mcp-doctor: node examples/demo/ennen.mjs
-Palvelin: muistio-demo 0.1.0, 3 työkalua
+Server: muistio-demo 0.1.0, 3 tools
 VIRHE    [SMOKE_TOOL_ERROR] search_notes: työkalu palautti virheen: String(...).trim(...).toLowercase is not a function
-VAROITUS [SCHEMA_PROP_DESC_MISSING] add_note: kentältä 'text' puuttuu kuvaus
-VAROITUS [SCHEMA_PROP_DESC_MISSING] add_note: kentältä 'tags' puuttuu kuvaus
-VAROITUS [SCHEMA_PROP_UNTYPED] search_notes: kentällä 'query' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä
-VAROITUS [SCHEMA_PROP_DESC_MISSING] search_notes: kentältä 'query' puuttuu kuvaus
-VAROITUS [TOOL_DESC_MISSING] delete_note: kuvaus puuttuu: malli ei tiedä milloin työkalua kuuluu käyttää
-HUOMIO   [TOOL_DESC_SHORT] search_notes: kuvaus on hyvin lyhyt (6 merkkiä)
-Savuajo:
+WARNING [SCHEMA_PROP_DESC_MISSING] add_note: field 'text' has no description
+WARNING [SCHEMA_PROP_DESC_MISSING] add_note: field 'tags' has no description
+WARNING [SCHEMA_PROP_UNTYPED] search_notes: field 'query' has no type (type/enum/const/$ref/anyOf/oneOf/allOf): the schema is too loose
+WARNING [SCHEMA_PROP_DESC_MISSING] search_notes: field 'query' has no description
+WARNING [TOOL_DESC_MISSING] delete_note: description is missing: the model cannot tell when to use this tool
+INFO    [TOOL_DESC_SHORT] search_notes: description is very short (6 characters)
+Smoke calls:
   OK     add_note (5 ms)
   VIRHE  search_notes (1 ms)
   OK     delete_note (1 ms)
-Yhteenveto: 1 virhettä, 5 varoitusta, 1 huomiota -> EPÄONNISTUI
+Summary: errors 1, warnings 5, info 1 -> FAILED
 ```
 
 Poistumiskoodi on `1`, joten CI-ajo kaatuu. (npm tulostaa perään oman virheilmoituksensa, koska skripti palautti muun kuin nollan. Se on odotettua.)
@@ -53,12 +53,12 @@ npm run demo:jalkeen
 
 ```
 mcp-doctor: node examples/demo/jalkeen.mjs
-Palvelin: muistio-demo 0.2.0, 3 työkalua
-Savuajo:
+Server: muistio-demo 0.2.0, 3 tools
+Smoke calls:
   OK     add_note (5 ms)
   OK     search_notes (1 ms)
   OK     delete_note (0 ms)
-Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
+Summary: errors 0, warnings 0, info 0 -> OK
 ```
 
 Molemmat skriptit ajavat `--strict`-tilassa, eli varoituksetkin kaatavat ajon. Millisekunnit vaihtelevat koneittain.

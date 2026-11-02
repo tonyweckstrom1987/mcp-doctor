@@ -56,14 +56,14 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
     } catch (e) {
       const tail = opts.stderrTail?.().trim();
       const extra = tail ? ` | palvelimen stderr: ${short(tail)}` : "";
-      findings.push({ id: "CONNECT_FAILED", severity: "error", message: `yhteys tai initialize-kättely epäonnistui: ${errText(e)}${extra}` });
+      findings.push({ id: "CONNECT_FAILED", severity: "error", message: `connection or initialize handshake failed: ${errText(e)}${extra}` });
       return build(opts, null, 0, findings, smokeResults);
     }
 
     const info = client.getServerVersion();
     const server = info ? { name: String(info.name), version: String(info.version) } : null;
     if (!server || !server.name) {
-      findings.push({ id: "SERVER_INFO_MISSING", severity: "warning", message: "palvelin ei kertonut nimeään ja versiotaan (serverInfo)" });
+      findings.push({ id: "SERVER_INFO_MISSING", severity: "warning", message: "server did not report its name and version (serverInfo)" });
     }
 
     const caps = client.getServerCapabilities();
@@ -73,7 +73,7 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
     let tokens: Report["tokens"];
     if (!caps?.tools) {
       toolListMissing = true;
-      findings.push({ id: "TOOLS_CAPABILITY_MISSING", severity: "warning", message: "palvelin ei ilmoita tools-kykyä, työkaluja ei listata" });
+      findings.push({ id: "TOOLS_CAPABILITY_MISSING", severity: "warning", message: "server does not declare the tools capability, tools are not listed" });
     } else {
       let cursor: string | undefined;
       let pages = 0;
@@ -86,20 +86,20 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
           pages++;
           if (cursor) {
             if (seenCursors.has(cursor)) {
-              findings.push({ id: "TOOLS_PAGINATION_LOOP", severity: "warning", message: `palvelin palautti saman nextCursor-arvon uudelleen, työkalulistaus keskeytettiin ${pages} sivun jälkeen` });
+              findings.push({ id: "TOOLS_PAGINATION_LOOP", severity: "warning", message: `server returned the same nextCursor again, tool listing stopped after ${pages} pages` });
               cursor = undefined;
               break;
             }
             seenCursors.add(cursor);
           }
         } while (cursor && pages < MAX_PAGES);
-        if (cursor) findings.push({ id: "TOOLS_PAGINATION_LIMIT", severity: "warning", message: `työkalulistaus keskeytettiin ${MAX_PAGES} sivun jälkeen` });
+        if (cursor) findings.push({ id: "TOOLS_PAGINATION_LIMIT", severity: "warning", message: `tool listing stopped after ${MAX_PAGES} pages` });
       } catch (e) {
         toolListMissing = true;
-        findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list epäonnistui: ${errText(e)}` });
+        findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list failed: ${errText(e)}` });
       }
       if (tools.length === 0 && !findings.some((f) => f.id === "TOOLS_LIST_FAILED")) {
-        findings.push({ id: "TOOLS_EMPTY", severity: "warning", message: "palvelin ilmoittaa tools-kyvyn mutta työkalulista on tyhjä" });
+        findings.push({ id: "TOOLS_EMPTY", severity: "warning", message: "server declares the tools capability but the tool list is empty" });
       }
       findings.push(...lintTools(tools));
       if (!toolListMissing) {
@@ -113,8 +113,8 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
       const tool = byName.get(call.tool);
       if (!tool) {
         const syy = toolListMissing
-          ? "työkalulistaa ei saatu (tools/list epäonnistui tai tools-kyky puuttuu), joten savuajon työkalua ei voitu etsiä"
-          : "savuajotiedostossa nimetty työkalu ei ole palvelimen listalla";
+          ? "no tool list available (tools/list failed or the tools capability is missing), so the smoke tool could not be looked up"
+          : "the tool named in the smoke file is not on the server's list";
         findings.push({ id: "SMOKE_TOOL_NOT_FOUND", severity: "error", tool: call.tool, message: syy });
         smokeResults.push({ tool: call.tool, ok: false, ms: 0 });
         continue;
@@ -129,11 +129,11 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
         const res = await client.callTool({ name: call.tool, arguments: call.arguments }, undefined, { timeout: opts.timeoutMs });
         const ms = Date.now() - start;
         const isError = res.isError === true;
-        if (isError && !call.expectError) fail("SMOKE_TOOL_ERROR", "error", `työkalu palautti virheen: ${firstText(res.content) || "(ei tekstiä)"}`);
-        else if (!isError && call.expectError) fail("SMOKE_EXPECTED_ERROR", "error", "työkalun odotettiin palauttavan virheen, mutta kutsu onnistui");
+        if (isError && !call.expectError) fail("SMOKE_TOOL_ERROR", "error", `tool returned an error: ${firstText(res.content) || "(no text)"}`);
+        else if (!isError && call.expectError) fail("SMOKE_EXPECTED_ERROR", "error", "the tool was expected to return an error, but the call succeeded");
         if (!isError) {
           const hasContent = Array.isArray(res.content) && res.content.length > 0;
-          if (!hasContent && res.structuredContent === undefined) fail("SMOKE_EMPTY_RESULT", "warning", "työkalu palautti tyhjän tuloksen");
+          if (!hasContent && res.structuredContent === undefined) fail("SMOKE_EMPTY_RESULT", "warning", "tool returned an empty result");
         }
         if (ms > call.maxMs) fail("SMOKE_SLOW", "warning", `vastaus kesti ${ms} ms (raja ${call.maxMs} ms)`);
         smokeResults.push({ tool: call.tool, ok, ms });
@@ -142,9 +142,9 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
         // aikakatkaisu ja katkennut yhteys eivät ole odotettu virhe.
         const protocolError = e instanceof McpError && e.code !== ErrorCode.RequestTimeout && e.code !== ErrorCode.ConnectionClosed;
         if (protocolError && call.expectError) {
-          fail("SMOKE_EXPECTED_PROTOCOL_ERROR", "info", `odotettu virhe tuli JSON-RPC-virheenä (${e.code}), ei isError-vastauksena: ${errText(e)}`);
+          fail("SMOKE_EXPECTED_PROTOCOL_ERROR", "info", `the expected error came as a JSON-RPC error (${e.code}), not as an isError result: ${errText(e)}`);
         } else {
-          fail("SMOKE_CALL_FAILED", "error", `kutsu epäonnistui: ${errText(e)}`);
+          fail("SMOKE_CALL_FAILED", "error", `call failed: ${errText(e)}`);
         }
         smokeResults.push({ tool: call.tool, ok, ms: Date.now() - start });
       }

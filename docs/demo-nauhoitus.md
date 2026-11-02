@@ -59,31 +59,31 @@ Ensimmainen ajo, `npm run demo:ennen` (poistumiskoodi 1):
 
 ```
 mcp-doctor: node examples/demo/ennen.mjs
-Palvelin: muistio-demo 0.1.0, 3 tyokalua
+Server: muistio-demo 0.1.0, 3 tools
 VIRHE    [SMOKE_TOOL_ERROR] search_notes: ... toLowercase is not a function
-VAROITUS [SCHEMA_PROP_DESC_MISSING] add_note: kentalta 'text' puuttuu kuvaus
-VAROITUS [SCHEMA_PROP_DESC_MISSING] add_note: kentalta 'tags' puuttuu kuvaus
-VAROITUS [SCHEMA_PROP_UNTYPED] search_notes: kentalla 'query' ei ole tyyppia ...
-VAROITUS [SCHEMA_PROP_DESC_MISSING] search_notes: kentalta 'query' puuttuu kuvaus
-VAROITUS [TOOL_DESC_MISSING] delete_note: kuvaus puuttuu ...
-HUOMIO   [TOOL_DESC_SHORT] search_notes: kuvaus on hyvin lyhyt (6 merkkia)
-Savuajo:
+WARNING [SCHEMA_PROP_DESC_MISSING] add_note: field 'text' has no description
+WARNING [SCHEMA_PROP_DESC_MISSING] add_note: field 'tags' has no description
+WARNING [SCHEMA_PROP_UNTYPED] search_notes: field 'query' has no type ...
+WARNING [SCHEMA_PROP_DESC_MISSING] search_notes: field 'query' has no description
+WARNING [TOOL_DESC_MISSING] delete_note: description is missing ...
+INFO    [TOOL_DESC_SHORT] search_notes: kuvaus on hyvin lyhyt (6 merkkia)
+Smoke calls:
   OK     add_note
   VIRHE  search_notes
   OK     delete_note
-Yhteenveto: 1 virhetta, 5 varoitusta, 1 huomiota -> EPAONNISTUI
+Summary: errors 1, warnings 5, info 1 -> FAILED
 ```
 
 Toinen ajo, `npm run demo:jalkeen` (poistumiskoodi 0):
 
 ```
 mcp-doctor: node examples/demo/jalkeen.mjs
-Palvelin: muistio-demo 0.2.0, 3 tyokalua
-Savuajo:
+Server: muistio-demo 0.2.0, 3 tools
+Smoke calls:
   OK     add_note
   OK     search_notes
   OK     delete_note
-Yhteenveto: 0 virhetta, 0 varoitusta, 0 huomiota -> OK
+Summary: errors 0, warnings 0, info 0 -> OK
 ```
 
 (Todellinen tuloste on taydellinen ja skandein: yllaoleva on tiivistetty ASCII-muotoon. Taysi versio on [demo.md](demo.md):ssa.)

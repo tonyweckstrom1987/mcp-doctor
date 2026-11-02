@@ -15,9 +15,9 @@ function find(id: string, severity: Finding["severity"], tool: string, message: 
 
 function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Finding[] {
   const out: Finding[] = [];
-  const label = kind === "input" ? "syöteskeema" : "tulosskeema";
+  const label = kind === "input" ? "input schema" : "output schema";
   if (!isRecord(schema) || schema.type !== "object") {
-    out.push(find(kind === "input" ? "SCHEMA_NOT_OBJECT" : "OUTPUT_SCHEMA_NOT_OBJECT", "error", tool, `${label} puuttuu tai sen type ei ole "object"`));
+    out.push(find(kind === "input" ? "SCHEMA_NOT_OBJECT" : "OUTPUT_SCHEMA_NOT_OBJECT", "error", tool, `${label} is missing or its type is not "object"`));
     return out;
   }
   if (kind === "output") return out;
@@ -45,12 +45,12 @@ function join(prefix: string, name: string): string {
 function lintObject(tool: string, schema: Record<string, unknown>, prefix: string, depth: number, inherited: ReadonlySet<string> = new Set()): Finding[] {
   const out: Finding[] = [];
   const nested = prefix !== "";
-  const where = nested ? ` (objektissa '${prefix}')` : "";
+  const where = nested ? ` (in object '${prefix}')` : "";
   const props = isRecord(schema.properties) ? schema.properties : undefined;
   const required = schema.required;
   if (required !== undefined) {
     if (!Array.isArray(required) || required.some((r) => typeof r !== "string")) {
-      out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, `required ei ole merkkijonolista${where}`));
+      out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, `required is not a list of strings${where}`));
     } else {
       // Kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta: silloin properties-lista ei ole koko totuus, eikä puuttuvaa kenttää voi tuomita.
       const composed = ["allOf", "anyOf", "oneOf", "$ref"].some((k) => k in schema);
@@ -59,7 +59,7 @@ function lintObject(tool: string, schema: Record<string, unknown>, prefix: strin
         if (!props || !Object.hasOwn(props, r)) {
           // Yhdistelmähaara voi vaatia vanhemman kentän (esim. anyOf: [{required: ["a"]}, {required: ["b"]}]).
           if (composed || inherited.has(r)) continue;
-          out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `pakollinen kenttä '${join(prefix, r)}' ei ole properties-listassa`));
+          out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `required field '${join(prefix, r)}' is not listed in properties`));
         }
       }
     }
@@ -69,14 +69,14 @@ function lintObject(tool: string, schema: Record<string, unknown>, prefix: strin
       const path = join(prefix, name);
       if (typeof def === "boolean") continue; // true/false on kelvollinen JSON Schema (kaikki sallittu / ei mitään sallittu)
       if (!isRecord(def)) {
-        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `kentän '${path}' skeema ei ole objekti`));
+        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `the schema of field '${path}' is not an object`));
         continue;
       }
       if (!TYPE_KEYS.some((k) => k in def)) {
-        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `kentällä '${path}' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä`));
+        out.push(find(nested ? "SCHEMA_NESTED_PROP_UNTYPED" : "SCHEMA_PROP_UNTYPED", nested ? "info" : "warning", tool, `field '${path}' has no type (type/enum/const/$ref/anyOf/oneOf/allOf): the schema is too loose`));
       }
       if (typeof def.description !== "string" || def.description.trim() === "") {
-        out.push(find(nested ? "SCHEMA_NESTED_DESC_MISSING" : "SCHEMA_PROP_DESC_MISSING", nested ? "info" : "warning", tool, `kentältä '${path}' puuttuu kuvaus`));
+        out.push(find(nested ? "SCHEMA_NESTED_DESC_MISSING" : "SCHEMA_PROP_DESC_MISSING", nested ? "info" : "warning", tool, `field '${path}' has no description`));
       }
       out.push(...lintValue(tool, def, path, depth + 1));
     }
@@ -92,7 +92,7 @@ function lintValue(tool: string, def: Record<string, unknown>, path: string, dep
     const items = def.items;
     if (items === undefined && def.prefixItems === undefined) {
       // Esim. Gemini hylkää koko työkalulistan, jos taulukolta puuttuu items; OpenAI:n strict-tila samoin.
-      out.push(find("SCHEMA_ARRAY_ITEMS_MISSING", "warning", tool, `taulukkokentältä '${path}' puuttuu items: alkioiden tyyppi on tuntematon, ja osa asiakkaista hylkää skeeman`));
+      out.push(find("SCHEMA_ARRAY_ITEMS_MISSING", "warning", tool, `array field '${path}' has no items: the element type is unknown, and some clients reject the schema`));
     } else if (isRecord(items)) {
       out.push(...lintValue(tool, items, `${path}[]`, depth + 1));
     }
@@ -136,20 +136,20 @@ export function lintTools(tools: ToolLike[]): Finding[] {
   const seen = new Map<string, number>();
   for (const t of tools) seen.set(t.name, (seen.get(t.name) ?? 0) + 1);
   for (const [name, n] of seen) {
-    if (n > 1) out.push(find("TOOL_DUPLICATE", "error", name, `työkalun nimi esiintyy ${n} kertaa`));
+    if (n > 1) out.push(find("TOOL_DUPLICATE", "error", name, `tool name appears ${n} times`));
   }
   const reported = new Set<string>();
   for (const t of tools) {
     if (reported.has(t.name)) continue; // duplikaatin skeema tarkistetaan kerran
     reported.add(t.name);
     if (!NAME_SPEC.test(t.name)) {
-      out.push(find("TOOL_NAME_INVALID", "error", t.name, "nimi on tyhjä, yli 128 merkkiä tai sisältää sallittujen merkkien (A-Z a-z 0-9 _ - .) ulkopuolisia merkkejä"));
+      out.push(find("TOOL_NAME_INVALID", "error", t.name, "name is empty, longer than 128 characters or contains characters outside the allowed set (A-Z a-z 0-9 _ - .)"));
     } else if (!NAME_STRICT.test(t.name)) {
-      out.push(find("TOOL_NAME_PORTABILITY", "warning", t.name, "nimi ei sovi muotoon [A-Za-z0-9_-]{1,64}, jota osa asiakkaista (esim. Claude API) vaatii"));
+      out.push(find("TOOL_NAME_PORTABILITY", "warning", t.name, "name does not match [A-Za-z0-9_-]{1,64}, which some clients (e.g. the Claude API) require"));
     }
     const desc = typeof t.description === "string" ? t.description.trim() : "";
-    if (desc === "") out.push(find("TOOL_DESC_MISSING", "warning", t.name, "kuvaus puuttuu: malli ei tiedä milloin työkalua kuuluu käyttää"));
-    else if (desc.length < SHORT_DESCRIPTION) out.push(find("TOOL_DESC_SHORT", "info", t.name, `kuvaus on hyvin lyhyt (${desc.length} merkkiä)`));
+    if (desc === "") out.push(find("TOOL_DESC_MISSING", "warning", t.name, "description is missing: the model cannot tell when to use this tool"));
+    else if (desc.length < SHORT_DESCRIPTION) out.push(find("TOOL_DESC_SHORT", "info", t.name, `description is very short (${desc.length} characters)`));
     out.push(...lintSchema(t.name, t.inputSchema, "input"));
     if (t.outputSchema !== undefined) out.push(...lintSchema(t.name, t.outputSchema, "output"));
   }

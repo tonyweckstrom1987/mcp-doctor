@@ -57,15 +57,15 @@ npm install -g @tonyweckstrom/mcp-doctor
 mcp-doctor --version
 ```
 
-Example output with smoke calls. The tool and finding messages in the report are in Finnish at the moment:
+Example output with smoke calls:
 
 ```
 mcp-doctor: node ../starter/dist/index.js
-Palvelin: mcp-server-starter 0.1.0, 2 työkalua
-Savuajo:
+Server: mcp-server-starter 0.1.0, 2 tools
+Smoke calls:
   OK     greet (4 ms)
   OK     add (1 ms)
-Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
+Summary: errors 0, warnings 0, info 0 -> OK
 ```
 
 | Option | Meaning |

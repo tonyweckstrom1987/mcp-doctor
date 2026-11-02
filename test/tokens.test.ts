@@ -45,8 +45,8 @@ describe("tokenimittari: löydökset", () => {
     const f = tokenFindings(measureTools([tool("a", "k".repeat(800)), tool("b", "k".repeat(400))], 100));
     const e = f.find((x) => x.id === "TOOLS_TOKEN_BUDGET_EXCEEDED");
     expect(e?.severity).toBe("error");
-    expect(e?.message).toMatch(/raja on 100/);
-    expect(e?.message).toMatch(/suurimmat: a \d+, b \d+/);
+    expect(e?.message).toMatch(/budget is 100/);
+    expect(e?.message).toMatch(/largest: a \d+, b \d+/);
   });
 
   it("rajan alla tai täsmälleen rajalla ei löydöksiä", () => {
@@ -64,7 +64,7 @@ describe("tokenimittari: palvelin ja CLI", () => {
     expect(r.findings).toEqual([]);
     expect(r.tokens?.perTool).toHaveLength(5);
     expect(r.tokens?.total).toBeGreaterThan(0);
-    expect(formatText(r)).toMatch(/Tokenit \(arvio\): työkalumäärittelyt yhteensä \d+; suurimmat: /);
+    expect(formatText(r)).toMatch(/Tokens \(estimate\): tool definitions total \d+; largest: /);
   });
 
   it("--max-tokens: ylitys kaataa ajon (exit 1), riittävä raja ei (exit 0)", async () => {

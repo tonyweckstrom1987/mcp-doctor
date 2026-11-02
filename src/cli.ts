@@ -23,26 +23,26 @@ export interface CliIo {
   readFile: (path: string) => string;
 }
 
-export const USAGE = `mcp-doctor - MCP-palvelimen terveystarkastus
+export const USAGE = `mcp-doctor - health check for MCP servers
 
-Käyttö:
-  mcp-doctor [valinnat] -- <komento> [argumentit...]     stdio-palvelin
-  mcp-doctor [valinnat] --url <http(s)-osoite>           HTTP-palvelin (Streamable HTTP)
+Usage:
+  mcp-doctor [options] -- <command> [arguments...]       stdio server
+  mcp-doctor [options] --url <http(s) address>           HTTP server (Streamable HTTP)
 
-Valinnat:
-  --smoke <tiedosto>     savuajo: kutsuu vain tiedostossa nimetyt työkalut
-  --json                 tulosta raportti JSONina
-  --strict               varoituksetkin kaatavat ajon (exit 1)
-  --timeout-ms <luku>    yksittäisen pyynnön aikakatkaisu, oletus 10000
-  --max-tokens <luku>    tokenimittarin raja: työkalumäärittelyjen arvioitu yhteiskoko ei saa ylittää tätä (ylitys on virhe)
-  --env <NIMI>           välitä ympäristömuuttuja stdio-palvelimelle (toistettava)
-  --bearer-env <NIMI>    lue HTTP-palvelimen Bearer-token tästä ympäristömuuttujasta
-  --auth                 HTTP-palvelimen OAuth-tarkistus: 401 ja WWW-Authenticate, resurssin ja valtuutuspalvelimen
-                         metatiedot, PKCE S256, refresh_token (kirjautumattomat pyynnöt, myös valtuutuspalvelimelle)
-  --version              tulosta versio
-  --help                 tämä ohje
+Options:
+  --smoke <file>         smoke calls: calls only the tools named in the file
+  --json                 print the report as JSON
+  --strict               warnings fail the run too (exit 1)
+  --timeout-ms <number>  timeout for a single request, default 10000
+  --max-tokens <number>  token budget: the estimated total size of the tool definitions must not exceed this (exceeding it is an error)
+  --env <NAME>           pass an environment variable to the stdio server (repeatable)
+  --bearer-env <NAME>    read the HTTP server's Bearer token from this environment variable
+  --auth                 OAuth check for an HTTP server: 401 and WWW-Authenticate, resource and authorization server
+                         metadata, PKCE S256, refresh_token (unauthenticated requests, also to the authorization server)
+  --version              print the version
+  --help                 this help
 
-Poistumiskoodit: 0 kunnossa, 1 löydöksiä (virhe, tai varoitus --strict-tilassa), 2 käyttö- tai tiedostovirhe, 3 odottamaton sisäinen virhe.
+Exit codes: 0 healthy, 1 findings (an error, or a warning with --strict), 2 usage or file error, 3 unexpected internal error.
 `;
 
 interface Args {
@@ -64,14 +64,14 @@ function parseArgs(argv: string[]): Args {
       command = argv.slice(i + 1);
       break;
     }
-    if (!a.startsWith("--")) throw new UsageError(`Odottamaton argumentti '${a}' (palvelimen komento tulee '--'-merkin jälkeen)`);
+    if (!a.startsWith("--")) throw new UsageError(`Unexpected argument '${a}' (the server command goes after '--')`);
     const name = a.slice(2);
     if (BOOL_FLAGS.has(name)) bools.add(name);
     else if (VALUE_FLAGS.has(name)) {
       const v = argv[++i];
-      if (v === undefined || v.startsWith("--")) throw new UsageError(`Valinta --${name} tarvitsee arvon`);
+      if (v === undefined || v.startsWith("--")) throw new UsageError(`Option --${name} needs a value`);
       flags.set(name, [...(flags.get(name) ?? []), v]);
-    } else throw new UsageError(`Tuntematon valinta --${name}`);
+    } else throw new UsageError(`Unknown option --${name}`);
   }
   return { command, flags, bools };
 }
@@ -79,7 +79,7 @@ function parseArgs(argv: string[]): Args {
 function one(args: Args, name: string): string | undefined {
   const v = args.flags.get(name);
   if (!v) return undefined;
-  if (v.length > 1) throw new UsageError(`Valinta --${name} saa esiintyä vain kerran`);
+  if (v.length > 1) throw new UsageError(`Option --${name} can be given only once`);
   return v[0];
 }
 
@@ -102,14 +102,14 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
     }
     const args = parseArgs(argv);
     const url = one(args, "url");
-    if (url !== undefined && args.command.length > 0) throw new UsageError("Anna joko --url tai komento '--'-merkin jälkeen, ei molempia");
-    if (url === undefined && args.command.length === 0) throw new UsageError("Anna palvelin: --url <osoite> tai komento '--'-merkin jälkeen");
+    if (url !== undefined && args.command.length > 0) throw new UsageError("Give either --url or a command after '--', not both");
+    if (url === undefined && args.command.length === 0) throw new UsageError("Give a server: --url <address> or a command after '--'");
     const timeoutRaw = one(args, "timeout-ms");
     const timeoutMs = timeoutRaw === undefined ? 10000 : Number(timeoutRaw);
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new UsageError("--timeout-ms täytyy olla positiivinen kokonaisluku");
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new UsageError("--timeout-ms must be a positive integer");
     const maxTokensRaw = one(args, "max-tokens");
     const maxTokens = maxTokensRaw === undefined ? undefined : Number(maxTokensRaw);
-    if (maxTokens !== undefined && (!Number.isInteger(maxTokens) || maxTokens < 1)) throw new UsageError("--max-tokens täytyy olla positiivinen kokonaisluku");
+    if (maxTokens !== undefined && (!Number.isInteger(maxTokens) || maxTokens < 1)) throw new UsageError("--max-tokens must be a positive integer");
 
     const smokePath = one(args, "smoke");
     let smoke;
@@ -118,12 +118,12 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       try {
         text = io.readFile(smokePath);
       } catch {
-        throw new UsageError(`Savuajotiedostoa '${smokePath}' ei voi lukea`);
+        throw new UsageError(`Cannot read the smoke file '${smokePath}'`);
       }
       smoke = parseSmokeSpec(text);
     }
 
-    if (args.bools.has("auth") && url === undefined) throw new UsageError("--auth koskee vain --url-palvelinta");
+    if (args.bools.has("auth") && url === undefined) throw new UsageError("--auth applies only to --url servers");
 
     let transport: Transport;
     let target: string;
@@ -133,28 +133,28 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       try {
         parsed = new URL(url);
       } catch {
-        throw new UsageError(`Virheellinen osoite '${url}'`);
+        throw new UsageError(`Invalid address '${url}'`);
       }
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new UsageError("--url: vain http ja https sallitaan");
-      if (args.flags.has("env")) throw new UsageError("--env koskee vain stdio-palvelinta");
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new UsageError("--url: only http and https are allowed");
+      if (args.flags.has("env")) throw new UsageError("--env applies only to stdio servers");
       const bearerEnv = one(args, "bearer-env");
       let requestInit: RequestInit | undefined;
       if (bearerEnv !== undefined) {
         const token = io.env[bearerEnv];
-        if (!token) throw new UsageError(`Ympäristömuuttuja ${bearerEnv} on tyhjä tai puuttuu`);
+        if (!token) throw new UsageError(`Environment variable ${bearerEnv} is empty or missing`);
         requestInit = { headers: { Authorization: `Bearer ${token}` } };
         if (parsed.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) {
-          io.stderr(`Varoitus: Bearer-token lähetetään salaamattomana (http) osoitteeseen ${parsed.hostname}. Käytä https:ää.\n`);
+          io.stderr(`Warning: the Bearer token is sent unencrypted (http) to ${parsed.hostname}. Use https.\n`);
         }
       }
       transport = new StreamableHTTPClientTransport(parsed, requestInit ? { requestInit } : undefined);
       target = `${parsed.origin}${parsed.pathname}`; // ei kyselyparametreja eikä tunnuksia tulosteisiin
     } else {
-      if (args.flags.has("bearer-env")) throw new UsageError("--bearer-env koskee vain --url-palvelinta");
+      if (args.flags.has("bearer-env")) throw new UsageError("--bearer-env applies only to --url servers");
       const env: Record<string, string> = {};
       for (const name of args.flags.get("env") ?? []) {
         const v = io.env[name];
-        if (v === undefined) throw new UsageError(`Ympäristömuuttujaa ${name} ei ole asetettu`);
+        if (v === undefined) throw new UsageError(`Environment variable ${name} is not set`);
         env[name] = v;
       }
       const [command, ...rest] = args.command;
@@ -177,7 +177,7 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
       const loginRequired = !args.flags.has("bearer-env") && !authFindings.some((x) => x.id === "AUTH_NOT_REQUIRED" || x.id === "AUTH_CHECK_FAILED");
       const rest = loginRequired
         ? report.findings.map((x): Finding => (x.id === "CONNECT_FAILED"
-          ? { id: "AUTH_LOGIN_REQUIRED", severity: "info", message: "palvelin vaatii kirjautumisen: varsinaista tarkastusta ei voi ajaa ilman tokenia (--bearer-env)" }
+          ? { id: "AUTH_LOGIN_REQUIRED", severity: "info", message: "server requires login: the full check cannot run without a token (--bearer-env)" }
           : x))
         : report.findings;
       const findings = [...authFindings, ...rest];
@@ -188,10 +188,10 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
     return report.ok ? EXIT_OK : EXIT_FINDINGS;
   } catch (err) {
     if (err instanceof UsageError) {
-      io.stderr(`Virhe: ${err.message}\n\n${USAGE}`);
+      io.stderr(`Error: ${err.message}\n\n${USAGE}`);
       return EXIT_USAGE;
     }
-    io.stderr(`Odottamaton virhe: ${short(err instanceof Error ? err.message : String(err))}\n`);
+    io.stderr(`Unexpected error: ${short(err instanceof Error ? err.message : String(err))}\n`);
     return EXIT_INTERNAL;
   }
 }

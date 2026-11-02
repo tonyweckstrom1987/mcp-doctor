@@ -13,7 +13,7 @@ describe("CLI: ohje ja käyttövirheet (exit 2)", () => {
   it("--help tulostaa ohjeen ja palauttaa 0", async () => {
     const io = makeIo();
     expect(await main(["--help"], io)).toBe(0);
-    expect(io.out).toContain("Käyttö:");
+    expect(io.out).toContain("Usage:");
   });
 
   it.each([
@@ -38,7 +38,7 @@ describe("CLI: ohje ja käyttövirheet (exit 2)", () => {
     delete io.env.EI_ASETETTU;
     delete io.env.EI_ASETETTU_X;
     expect(await main([...argv], io)).toBe(2);
-    expect(io.err).toContain("Virhe:");
+    expect(io.err).toContain("Error:");
   });
 });
 
@@ -46,7 +46,7 @@ describe("CLI: ilman argumentteja", () => {
   it("tulostaa ohjeen stderriin ja palauttaa 2", async () => {
     const io = makeIo();
     expect(await main([], io)).toBe(2);
-    expect(io.err).toContain("Käyttö:");
+    expect(io.err).toContain("Usage:");
     expect(io.out).toBe("");
   });
 });
@@ -55,7 +55,7 @@ describe("CLI: stdio-palvelin", () => {
   it("kunnossa oleva palvelin: exit 0 ja tekstiraportti", async () => {
     const io = makeIo();
     expect(await main(good, io)).toBe(0);
-    expect(io.out).toContain("Palvelin: hyva-palvelin 1.2.3, 5 työkalua");
+    expect(io.out).toContain("Server: hyva-palvelin 1.2.3, 5 tools");
     expect(io.out).toContain("-> OK");
   });
 
@@ -63,7 +63,7 @@ describe("CLI: stdio-palvelin", () => {
     const io = makeIo();
     expect(await main(["--", NODE, fixture("bad-tools-server.mjs")], io)).toBe(1);
     expect(io.out).toContain("[TOOL_DUPLICATE]");
-    expect(io.out).toContain("EPÄONNISTUI");
+    expect(io.out).toContain("FAILED");
   });
 
   it("--json tulostaa jäsennettävän raportin", async () => {
@@ -139,15 +139,15 @@ describe("CLI: HTTP-palvelin", () => {
   it("oikea token: exit 0, savuajo toimii", async () => {
     const io = makeIo({ DOCTOR_TOKEN: TOKEN }, { "s.json": JSON.stringify([{ tool: "ping" }]) });
     expect(await main(["--url", url, "--bearer-env", "DOCTOR_TOKEN", "--smoke", "s.json"], io)).toBe(0);
-    expect(io.out).toContain("Palvelin: http-palvelin 9.9.9, 1 työkalua");
+    expect(io.out).toContain("Server: http-palvelin 9.9.9, 1 tool");
     expect(io.out).toMatch(/OK\s+ping/);
-    expect(io.err).not.toContain("salaamattomana"); // localhost: ei varoitusta
+    expect(io.err).not.toContain("unencrypted"); // localhost: ei varoitusta
   });
 
   it("token salaamattomalla http-yhteydellä muualle kuin localhostiin: varoitus", async () => {
     const io = makeIo({ DOCTOR_TOKEN: TOKEN });
     await main(["--url", "http://palvelin.invalid/mcp", "--bearer-env", "DOCTOR_TOKEN", "--timeout-ms", "1000"], io);
-    expect(io.err).toContain("salaamattomana");
+    expect(io.err).toContain("unencrypted");
     expect(io.err).not.toContain(TOKEN);
   });
 
@@ -245,7 +245,7 @@ describe("CLI: odottamaton virhe (exit 3)", () => {
       throw new Error("rikki");
     };
     expect(await main(good, io)).toBe(3);
-    expect(io.err).toContain("Odottamaton virhe: rikki");
+    expect(io.err).toContain("Unexpected error: rikki");
   });
 
   it("virheviestin ohjausmerkit siivotaan (ei uutta riviä esim. ::warning::-komennolle)", async () => {
@@ -254,6 +254,6 @@ describe("CLI: odottamaton virhe (exit 3)", () => {
       throw new Error("rikki\n::warning::huijaus\u001b[31m");
     };
     expect(await main(good, io)).toBe(3);
-    expect(io.err).toBe("Odottamaton virhe: rikki ::warning::huijaus [31m\n");
+    expect(io.err).toBe("Unexpected error: rikki ::warning::huijaus [31m\n");
   });
 });

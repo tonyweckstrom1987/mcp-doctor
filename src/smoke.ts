@@ -15,20 +15,20 @@ export function parseSmokeSpec(text: string): SmokeCall[] {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new UsageError("Savuajotiedosto ei ole kelvollista JSONia");
+    throw new UsageError("The smoke file is not valid JSON");
   }
   const calls = Array.isArray(data) ? data : isRecord(data) ? data.calls : undefined;
-  if (!Array.isArray(calls)) throw new UsageError('Savuajotiedoston pitää olla taulukko tai {"calls": [...]}');
-  if (calls.length === 0) throw new UsageError("Savuajotiedostossa ei ole yhtään kutsua: tyhjä savuajo raportoisi OK, vaikka mitään ei testattu");
+  if (!Array.isArray(calls)) throw new UsageError('The smoke file must be an array or {"calls": [...]}');
+  if (calls.length === 0) throw new UsageError("The smoke file has no calls: an empty smoke run would report OK although nothing was tested");
   const out: SmokeCall[] = [];
   calls.forEach((c, i) => {
     const at = `calls[${i}]`;
-    if (!isRecord(c)) throw new UsageError(`${at}: pitää olla objekti`);
-    if (typeof c.tool !== "string" || c.tool === "") throw new UsageError(`${at}: tool puuttuu`);
-    if (c.arguments !== undefined && !isRecord(c.arguments)) throw new UsageError(`${at}: arguments pitää olla objekti`);
-    if (c.expectError !== undefined && typeof c.expectError !== "boolean") throw new UsageError(`${at}: expectError pitää olla true tai false`);
+    if (!isRecord(c)) throw new UsageError(`${at}: must be an object`);
+    if (typeof c.tool !== "string" || c.tool === "") throw new UsageError(`${at}: tool is missing`);
+    if (c.arguments !== undefined && !isRecord(c.arguments)) throw new UsageError(`${at}: arguments must be an object`);
+    if (c.expectError !== undefined && typeof c.expectError !== "boolean") throw new UsageError(`${at}: expectError must be true or false`);
     if (c.maxMs !== undefined && !(typeof c.maxMs === "number" && Number.isFinite(c.maxMs) && c.maxMs > 0)) {
-      throw new UsageError(`${at}: maxMs pitää olla positiivinen luku`);
+      throw new UsageError(`${at}: maxMs must be a positive number`);
     }
     out.push({
       tool: c.tool,
