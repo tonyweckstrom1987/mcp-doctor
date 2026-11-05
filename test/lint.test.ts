@@ -47,7 +47,7 @@ describe("lintTools", () => {
 
   it("required: tuntematon kenttä ja väärä muoto ovat virheitä", () => {
     const unknown = lintTools([{ ...good, inputSchema: { type: "object", properties: {}, required: ["puuttuu"] } }]);
-    expect(unknown.find((f) => f.id === "SCHEMA_REQUIRED_UNKNOWN")?.message).toContain("puuttuu");
+    expect(unknown.find((f) => f.id === "SCHEMA_REQUIRED_UNKNOWN")?.message).toContain("not listed");
     expect(ids([{ ...good, inputSchema: { type: "object", required: ["x"] } }])).toContain("SCHEMA_REQUIRED_UNKNOWN");
     expect(ids([{ ...good, inputSchema: { type: "object", properties: {}, required: "x" } }])).toContain("SCHEMA_REQUIRED_INVALID");
     expect(ids([{ ...good, inputSchema: { type: "object", properties: {}, required: [1] } }])).toContain("SCHEMA_REQUIRED_INVALID");
@@ -106,7 +106,7 @@ describe("lintTools", () => {
     it("taulukon alkion kentän puuttuva kuvaus ja tyyppi ovat huomioita polun kanssa", () => {
       const f = lintTools([entities({ type: "object", properties: { name: { type: "string" }, extra: {} } })]);
       const desc = f.filter((x) => x.id === "SCHEMA_NESTED_DESC_MISSING");
-      expect(desc.map((x) => x.message)).toEqual(["kentältä 'entities[].name' puuttuu kuvaus", "kentältä 'entities[].extra' puuttuu kuvaus"]);
+      expect(desc.map((x) => x.message)).toEqual(["field 'entities[].name' has no description", "field 'entities[].extra' has no description"]);
       expect(f.find((x) => x.id === "SCHEMA_NESTED_PROP_UNTYPED")?.message).toContain("'entities[].extra'");
       expect(f.every((x) => x.severity === "info")).toBe(true);
     });
@@ -133,7 +133,7 @@ describe("lintTools", () => {
 
     it("sisäkkäinen objekti ilman taulukkoa tarkistetaan pistepolulla", () => {
       const schema = { type: "object", properties: { opts: { type: "object", description: "Valinnat", properties: { depth: { type: "integer" } } } } };
-      expect(lintTools([{ ...good, inputSchema: schema }]).map((x) => x.message)).toEqual(["kentältä 'opts.depth' puuttuu kuvaus"]);
+      expect(lintTools([{ ...good, inputSchema: schema }]).map((x) => x.message)).toEqual(["field 'opts.depth' has no description"]);
     });
 
     it("syvä rakenne katkaistaan eikä kaada tarkistusta", () => {
@@ -191,7 +191,7 @@ describe("lintTools", () => {
       expect(f.map((y) => y.id)).toEqual(["SCHEMA_ARRAY_ITEMS_MISSING"]);
       expect(f[0].message).toContain("'x[1]'");
       const g = lintTools(withProp({ type: "array", description: "x", prefixItems: [{ type: "object", properties: { a: { type: "string" } } }] }));
-      expect(g.map((y) => y.message)).toEqual(["kentältä 'x[0].a' puuttuu kuvaus"]);
+      expect(g.map((y) => y.message)).toEqual(["field 'x[0].a' has no description"]);
     });
 
     it("syvästi sisäkkäiset haarat katkaistaan eikä kaada tarkistusta", () => {

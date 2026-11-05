@@ -40,7 +40,7 @@ describe("palvelin estää pyynnön (401/403)", () => {
     const io = makeIo();
     expect(await main(["--url", `${base}/401`, "--timeout-ms", "3000"], io)).toBe(1);
     expect(io.out).toContain("HTTP 401");
-    expect(io.out).toContain("palvelin vaatii kirjautumisen");
+    expect(io.out).toContain("the server requires login");
     expect(io.out).toContain("--auth");
   });
 
@@ -49,7 +49,7 @@ describe("palvelin estää pyynnön (401/403)", () => {
     expect(await main(["--url", `${base}/500`, "--timeout-ms", "3000"], io)).toBe(1);
     expect(io.out).toContain("CONNECT_FAILED");
     expect(io.out).not.toContain("HTTP 500:");
-    expect(io.out).not.toContain("vaatii kirjautumisen");
+    expect(io.out).not.toContain("requires login");
   });
 
   it("--auth + 403: ei väitä, ettei kirjautumista vaadita", async () => {

@@ -35,8 +35,8 @@ describe("versio", () => {
       const io = makeIo();
       const koodi = await main(["--", NODE, fixture("good-server.mjs"), lippu], io);
       expect(koodi).toBe(0);
-      expect(io.out).not.toContain("Käyttö:");
-      expect(io.out).toContain("Palvelin: hyva-palvelin");
+      expect(io.out).not.toContain("Usage:");
+      expect(io.out).toContain("Server: hyva-palvelin");
     }
   });
 });

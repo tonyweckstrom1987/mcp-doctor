@@ -57,15 +57,15 @@ npm install -g @tonyweckstrom/mcp-doctor
 mcp-doctor --version
 ```
 
-Example output with smoke calls. The tool and finding messages in the report are in Finnish at the moment:
+Example output with smoke calls:
 
 ```
 mcp-doctor: node ../starter/dist/index.js
-Palvelin: mcp-server-starter 0.1.0, 2 työkalua
-Savuajo:
+Server: mcp-server-starter 0.1.0, 2 tools
+Smoke calls:
   OK     greet (4 ms)
   OK     add (1 ms)
-Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
+Summary: errors 0, warnings 0, info 0 -> OK
 ```
 
 | Option | Meaning |
@@ -139,8 +139,8 @@ Clients (Claude, Cursor and others) send every tool's name, description and inpu
 
 ```
 $ npx @tonyweckstrom/mcp-doctor --max-tokens 200 -- node examples/demo/jalkeen.mjs
-VIRHE    [TOOLS_TOKEN_BUDGET_EXCEEDED] työkalumäärittelyt vievät arviolta 257 tokenia, raja on 200 (--max-tokens); suurimmat: add_note 104, search_notes 84, delete_note 69
-Tokenit (arvio): työkalumäärittelyt yhteensä 257 / raja 200; suurimmat: add_note 104, search_notes 84, delete_note 69
+ERROR   [TOOLS_TOKEN_BUDGET_EXCEEDED] tool definitions take about 257 tokens, the budget is 200 (--max-tokens); largest: add_note 104, search_notes 84, delete_note 69
+Tokens (estimate): tool definitions total 257 / budget 200; largest: add_note 104, search_notes 84, delete_note 69
 ```
 
 `--max-tokens 4000` (in the action: `max-tokens: "4000"`) turns it into a CI budget: when someone adds a tool or grows a description past the limit, the job fails and the message names the largest tools. The estimate is characters / 4, so treat it as a guide (roughly ±25 % depending on the model's tokenizer). It is good for comparison and budgets, not for billing. In the JSON report the numbers are in the `tokens` field.

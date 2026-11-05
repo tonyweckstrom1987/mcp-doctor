@@ -11,7 +11,7 @@ npx @tonyweckstrom/mcp-doctor --strict -- node dist/index.js
 
 The finding disappears from the output and the last line says `-> OK`. Add `--smoke smoke.json` for the `SMOKE_*` codes and `--auth --url <url>` for the `AUTH_*` codes.
 
-**About the examples.** Each example was run against mcp-doctor 0.5.0 with a small test server. The report text is Finnish at the moment, so the quoted output is Finnish too. The codes, severities and exit codes are what you should rely on. Where an example could not be reproduced end to end, the section says **Not verified**.
+**About the examples.** Each example was run against mcp-doctor 0.5.0 with a small test server. The quoted messages were then updated to the English wording of the report by hand, and the tests only check that they are in English. The codes, severities and exit codes are what you should rely on. Where an example could not be reproduced end to end, the section says **Not verified**.
 
 Severity decides the exit code: `error` always fails the run (exit 1), `warning` fails it only with `--strict`, `info` never does.
 
@@ -30,7 +30,7 @@ Contents: [Connection and server](#connection-and-server) · [Tool list](#tool-l
 **Before** (the start command points to a file that does not exist):
 
 ```
-VIRHE    [CONNECT_FAILED] yhteys tai initialize-kättely epäonnistui: MCP error -32000: Connection closed | palvelimen stderr: Error: Cannot find module ./dist/index.js
+ERROR   [CONNECT_FAILED] connection or initialize handshake failed: MCP error -32000: Connection closed | server stderr: Error: Cannot find module ./dist/index.js
 ```
 
 **After:** read the stderr tail, fix the cause (here: run `npm run build` first, or correct the path), and run again. Typical causes: missing build step, wrong working directory, a missing environment variable (pass it with `--env NAME`, because the server sees only `PATH` and basic variables), or anything printed to stdout that is not JSON-RPC (log to stderr instead).
@@ -94,7 +94,7 @@ new Server({ name: "notes-server", version: "1.0.0" }, { capabilities: { tools: 
 ```
 
 ```
-VIRHE    [TOOLS_LIST_FAILED] tools/list epäonnistui: [ { "expected": "array", "code": "invalid_type", "path": [ "tools", 0, "inputSchema", "required" ], "message": "Invalid input: expected array, received string" } ]
+ERROR   [TOOLS_LIST_FAILED] tools/list failed: [ { "expected": "array", "code": "invalid_type", "path": [ "tools", 0, "inputSchema", "required" ], "message": "Invalid input: expected array, received string" } ]
 ```
 
 **After:** read `path` in the message: it points to the exact field. Here `"required": ["q"]`.
@@ -157,7 +157,7 @@ VIRHE    [TOOLS_LIST_FAILED] tools/list epäonnistui: [ { "expected": "array", "
 ```
 
 ```
-VIRHE    [TOOL_DUPLICATE] search: työkalun nimi esiintyy 2 kertaa
+ERROR   [TOOL_DUPLICATE] search: tool name appears 2 times
 ```
 
 **Check:** re-run; the error is gone.
@@ -177,7 +177,7 @@ VIRHE    [TOOL_DUPLICATE] search: työkalun nimi esiintyy 2 kertaa
 **Before / After:** `"search notes!"` becomes `"search_notes"`.
 
 ```
-VIRHE    [TOOL_NAME_INVALID] search notes!: nimi on tyhjä, yli 128 merkkiä tai sisältää sallittujen merkkien (A-Z a-z 0-9 _ - .) ulkopuolisia merkkejä
+ERROR   [TOOL_NAME_INVALID] search notes!: name is empty, longer than 128 characters or contains characters outside the allowed set (A-Z a-z 0-9 _ - .)
 ```
 
 **Check:** re-run; the error is gone.
@@ -193,7 +193,7 @@ VIRHE    [TOOL_NAME_INVALID] search notes!: nimi on tyhjä, yli 128 merkkiä tai
 **Before / After:** `"notes.search"` becomes `"notes_search"`.
 
 ```
-VAROITUS [TOOL_NAME_PORTABILITY] notes.search: nimi ei sovi muotoon [A-Za-z0-9_-]{1,64}, jota osa asiakkaista (esim. Claude API) vaatii
+WARNING [TOOL_NAME_PORTABILITY] notes.search: name does not match [A-Za-z0-9_-]{1,64}, which some clients (e.g. the Claude API) require
 ```
 
 **Check:** re-run with `--strict`.
@@ -216,7 +216,7 @@ VAROITUS [TOOL_NAME_PORTABILITY] notes.search: nimi ei sovi muotoon [A-Za-z0-9_-
 ```
 
 ```
-VAROITUS [TOOL_DESC_MISSING] search: kuvaus puuttuu: malli ei tiedä milloin työkalua kuuluu käyttää
+WARNING [TOOL_DESC_MISSING] search: description is missing: the model cannot tell when to use this tool
 ```
 
 A good description says what the tool does, what it returns, and when to use it instead of a similar tool.
@@ -234,7 +234,7 @@ A good description says what the tool does, what it returns, and when to use it 
 **Before / After:** `"Search"` becomes `"Search notes by keyword and return matching note ids."`
 
 ```
-HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
+INFO    [TOOL_DESC_SHORT] search: description is very short (6 characters)
 ```
 
 **Check:** re-run; the note is gone.
@@ -318,7 +318,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 ```
 
 ```
-VIRHE    [SCHEMA_REQUIRED_UNKNOWN] search: pakollinen kenttä 'query' ei ole properties-listassa
+ERROR   [SCHEMA_REQUIRED_UNKNOWN] search: required field 'query' is not listed in properties
 ```
 
 The check skips objects that use `allOf`, `anyOf`, `oneOf` or `$ref`, because the property may be defined there.
@@ -343,7 +343,7 @@ inputSchema: { q: z.string().describe("Search text; matched case-insensitively a
 ```
 
 ```
-VAROITUS [SCHEMA_PROP_DESC_MISSING] search: kentältä 'q' puuttuu kuvaus
+WARNING [SCHEMA_PROP_DESC_MISSING] search: field 'q' has no description
 ```
 
 **Check:** re-run with `--strict`.
@@ -366,7 +366,7 @@ VAROITUS [SCHEMA_PROP_DESC_MISSING] search: kentältä 'q' puuttuu kuvaus
 ```
 
 ```
-VAROITUS [SCHEMA_PROP_UNTYPED] search: kentällä 'q' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä
+WARNING [SCHEMA_PROP_UNTYPED] search: field 'q' has no type (type/enum/const/$ref/anyOf/oneOf/allOf): the schema is too loose
 ```
 
 **Check:** re-run with `--strict`.
@@ -389,7 +389,7 @@ VAROITUS [SCHEMA_PROP_UNTYPED] search: kentällä 'q' ei ole tyyppiä (type/enum
 ```
 
 ```
-VAROITUS [SCHEMA_ARRAY_ITEMS_MISSING] search: taulukkokentältä 'tags' puuttuu items: alkioiden tyyppi on tuntematon, ja osa asiakkaista hylkää skeeman
+WARNING [SCHEMA_ARRAY_ITEMS_MISSING] search: array field 'tags' has no items: the element type is unknown, and some clients reject the schema
 ```
 
 **Check:** re-run with `--strict`.
@@ -412,7 +412,7 @@ VAROITUS [SCHEMA_ARRAY_ITEMS_MISSING] search: taulukkokentältä 'tags' puuttuu 
 ```
 
 ```
-HUOMIO   [SCHEMA_NESTED_DESC_MISSING] search: kentältä 'filter.author' puuttuu kuvaus
+INFO    [SCHEMA_NESTED_DESC_MISSING] search: field 'filter.author' has no description
 ```
 
 **Check:** re-run; the note is gone.
@@ -433,7 +433,7 @@ HUOMIO   [SCHEMA_NESTED_DESC_MISSING] search: kentältä 'filter.author' puuttuu
 ```
 
 ```
-HUOMIO   [SCHEMA_NESTED_PROP_UNTYPED] search: kentällä 'filter.author' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä
+INFO    [SCHEMA_NESTED_PROP_UNTYPED] search: field 'filter.author' has no type (type/enum/const/$ref/anyOf/oneOf/allOf): the schema is too loose
 ```
 
 **Check:** re-run; the note is gone.
@@ -455,7 +455,7 @@ Clients send every tool definition to the model in every request. See [Token bud
 **Fix:** shorten the description to what the model needs to choose and call the tool, move long documentation out of the schema, and trim repeated field descriptions.
 
 ```
-HUOMIO   [TOOL_TOKENS_HIGH] search: työkalun määrittely vie arviolta 1138 tokenia jokaisesta pyynnöstä (raja 1000); lyhennä kuvausta tai skeeman kenttäkuvauksia
+INFO    [TOOL_TOKENS_HIGH] search: tool definition takes about 1138 tokens of every request (limit 1000); shorten the description or the schema field descriptions
 ```
 
 **Check:** the `Tokenit (arvio):` line shows the new total.
@@ -471,10 +471,10 @@ HUOMIO   [TOOL_TOKENS_HIGH] search: työkalun määrittely vie arviolta 1138 tok
 **Before / After:** run with `--max-tokens 500`:
 
 ```
-VIRHE    [TOOLS_TOKEN_BUDGET_EXCEEDED] työkalumäärittelyt vievät arviolta 1138 tokenia, raja on 500 (--max-tokens); suurimmat: search 1138
+ERROR   [TOOLS_TOKEN_BUDGET_EXCEEDED] tool definitions take about 1138 tokens, the budget is 500 (--max-tokens); largest: search 1138
 ```
 
-Shorten the named tools, remove tools the server does not need, or raise the limit on purpose after a review. After shortening the description to one sentence the same command prints `0 virhettä ... -> OK`.
+Shorten the named tools, remove tools the server does not need, or raise the limit on purpose after a review. After shortening the description to one sentence the same command prints `Summary: errors 0, warnings 0, info 0 -> OK`.
 
 **Check:** `npx @tonyweckstrom/mcp-doctor --max-tokens 500 -- node dist/index.js`
 
@@ -499,7 +499,7 @@ Smoke calls run only the tools named in your smoke file (`--smoke smoke.json`, f
 **Before / After:** `"tool": "serch"` becomes `"tool": "search"`.
 
 ```
-VIRHE    [SMOKE_TOOL_NOT_FOUND] serch: savuajotiedostossa nimetty työkalu ei ole palvelimen listalla
+ERROR   [SMOKE_TOOL_NOT_FOUND] serch: the tool named in the smoke file is not on the server's list
 ```
 
 If the tool list itself failed, the message says so; fix `TOOLS_LIST_FAILED` or `TOOLS_CAPABILITY_MISSING` first.
@@ -521,7 +521,7 @@ If the tool list itself failed, the message says so; fix `TOOLS_LIST_FAILED` or 
 ```
 
 ```
-VIRHE    [SMOKE_TOOL_ERROR] search: työkalu palautti virheen: Ei löydy
+ERROR   [SMOKE_TOOL_ERROR] search: tool returned an error: Not found
 ```
 
 **Check:** the smoke section shows `OK search (...)`.
@@ -537,7 +537,7 @@ VIRHE    [SMOKE_TOOL_ERROR] search: työkalu palautti virheen: Ei löydy
 **Fix:** if the tool should reject these arguments, fix the validation in the tool. If the call is valid after all, remove `expectError` or change the arguments.
 
 ```
-VIRHE    [SMOKE_EXPECTED_ERROR] search: työkalun odotettiin palauttavan virheen, mutta kutsu onnistui
+ERROR   [SMOKE_EXPECTED_ERROR] search: the tool was expected to return an error, but the call succeeded
 ```
 
 **Check:** the smoke section shows `OK`.
@@ -553,7 +553,7 @@ VIRHE    [SMOKE_EXPECTED_ERROR] search: työkalun odotettiin palauttavan virheen
 **Fix:** catch the failure inside the tool handler and return `{ isError: true, content: [{ type: "text", text: "Note 999 not found" }] }`. Argument validation errors that the SDK rejects before your handler runs are normal protocol errors and can be left as they are.
 
 ```
-HUOMIO   [SMOKE_EXPECTED_PROTOCOL_ERROR] search: odotettu virhe tuli JSON-RPC-virheenä (-32602), ei isError-vastauksena: MCP error -32602: MCP error -32602: virheellinen parametri
+INFO    [SMOKE_EXPECTED_PROTOCOL_ERROR] search: the expected error came as a JSON-RPC error (-32602), not as an isError result: MCP error -32602: MCP error -32602: invalid parameter
 ```
 
 **Check:** the note disappears when the error comes back as an `isError` result.
@@ -569,7 +569,7 @@ HUOMIO   [SMOKE_EXPECTED_PROTOCOL_ERROR] search: odotettu virhe tuli JSON-RPC-vi
 **Fix:** read the error text. For a protocol error, check the arguments against the schema. For a timeout, make the tool faster or raise `--timeout-ms`. For `outputSchema` problems, return `structuredContent` that matches the schema.
 
 ```
-VIRHE    [SMOKE_CALL_FAILED] search: kutsu epäonnistui: MCP error -32602: MCP error -32602: virheellinen parametri
+ERROR   [SMOKE_CALL_FAILED] search: call failed: MCP error -32602: MCP error -32602: invalid parameter
 ```
 
 **Check:** the smoke section shows `OK`.
@@ -592,7 +592,7 @@ return { content: [{ type: "text", text: "Deleted note 3" }] };
 ```
 
 ```
-VAROITUS [SMOKE_EMPTY_RESULT] search: työkalu palautti tyhjän tuloksen
+WARNING [SMOKE_EMPTY_RESULT] search: tool returned an empty result
 ```
 
 **Check:** re-run with `--strict`.
@@ -612,7 +612,7 @@ VAROITUS [SMOKE_EMPTY_RESULT] search: työkalu palautti tyhjän tuloksen
 ```
 
 ```
-VAROITUS [SMOKE_SLOW] search: vastaus kesti 405 ms (raja 100 ms)
+WARNING [SMOKE_SLOW] search: response took 405 ms (limit 100 ms)
 ```
 
 With `maxMs: 2000` the same 404 ms call is reported as `OK search (404 ms)`.
@@ -644,7 +644,7 @@ A healthy setup prints `AUTH_OK`.
 **Fix:** check the URL (including the path, usually `/mcp`), that the server is running, and firewall or proxy settings.
 
 ```
-VIRHE    [AUTH_CHECK_FAILED] kirjautumaton initialize-pyyntö epäonnistui: fetch failed
+ERROR   [AUTH_CHECK_FAILED] unauthenticated initialize request failed: fetch failed
 ```
 
 **Verified:** yes (a closed port).
@@ -658,7 +658,7 @@ VIRHE    [AUTH_CHECK_FAILED] kirjautumaton initialize-pyyntö epäonnistui: fetc
 **Fix:** for a protected server, return `401` with a `WWW-Authenticate` header for requests without a valid token.
 
 ```
-HUOMIO   [AUTH_NOT_REQUIRED] palvelin vastasi kirjautumattomaan initialize-pyyntöön tilalla 200 eikä 401: kirjautumista ei vaadita, OAuth-tarkistus ohitetaan
+INFO    [AUTH_NOT_REQUIRED] server answered the unauthenticated initialize request with status 200, not 401: login is not required, skipping the OAuth check
 ```
 
 **Verified:** yes. The test server answered `200` but was not a complete MCP server, so the run also printed a `CONNECT_FAILED` timeout. A real open server would not.
@@ -672,7 +672,7 @@ HUOMIO   [AUTH_NOT_REQUIRED] palvelin vastasi kirjautumattomaan initialize-pyynt
 **Fix:** to check tools behind the login, create a token yourself, put it in an environment variable and pass the name: `--bearer-env NAME`. Never put the token on the command line.
 
 ```
-HUOMIO   [AUTH_LOGIN_REQUIRED] palvelin vaatii kirjautumisen: varsinaista tarkastusta ei voi ajaa ilman tokenia (--bearer-env)
+INFO    [AUTH_LOGIN_REQUIRED] server requires login: the full check cannot run without a token (--bearer-env)
 ```
 
 **Verified:** yes (appears in every `--auth` run against a protected test server).
@@ -693,7 +693,7 @@ WWW-Authenticate: Bearer resource_metadata="https://your-server.example.com/.wel
 ```
 
 ```
-VAROITUS [AUTH_WWW_AUTHENTICATE_MISSING] 401-vastauksesta puuttuu WWW-Authenticate: Bearer -otsake: asiakas ei saa vihjettä siitä, mistä kirjautumistiedot löytyvät
+WARNING [AUTH_WWW_AUTHENTICATE_MISSING] the 401 response has no WWW-Authenticate: Bearer header: the client gets no hint about where to find login details
 ```
 
 **Verified:** yes (before state; after state is the healthy server that prints `AUTH_OK`).
@@ -705,7 +705,7 @@ VAROITUS [AUTH_WWW_AUTHENTICATE_MISSING] 401-vastauksesta puuttuu WWW-Authentica
 **Fix:** add `resource_metadata="<url>"` to the header (example above). Many clients work without it, but the parameter is the reliable route.
 
 ```
-HUOMIO   [AUTH_RESOURCE_METADATA_HINT_MISSING] WWW-Authenticate-otsakkeessa ei ole resource_metadata-parametria: asiakkaan pitää arvata metatietojen osoite (well-known)
+INFO    [AUTH_RESOURCE_METADATA_HINT_MISSING] the WWW-Authenticate header has no resource_metadata parameter: the client has to guess the metadata URL (well-known)
 ```
 
 **Verified:** yes (the run continued with the well-known fallback and found the metadata).
@@ -723,7 +723,7 @@ HUOMIO   [AUTH_RESOURCE_METADATA_HINT_MISSING] WWW-Authenticate-otsakkeessa ei o
 ```
 
 ```
-VIRHE    [AUTH_RESOURCE_METADATA_MISSING] suojatun resurssin metatietoja (RFC 9728) ei löytynyt: http://127.0.0.1:9104/.well-known/oauth-protected-resource/mcp (404); ...
+ERROR   [AUTH_RESOURCE_METADATA_MISSING] protected resource metadata (RFC 9728) not found: http://127.0.0.1:9104/.well-known/oauth-protected-resource/mcp (404); ...
 ```
 
 **Verified:** yes (all addresses returned 404).
@@ -735,7 +735,7 @@ VIRHE    [AUTH_RESOURCE_METADATA_MISSING] suojatun resurssin metatietoja (RFC 97
 **Fix:** add `"resource"` with the server's URL (example above).
 
 ```
-VIRHE    [AUTH_RESOURCE_INVALID] metatiedoista (http://127.0.0.1:9105/.well-known/oauth-protected-resource/mcp) puuttuu resource-kenttä
+ERROR   [AUTH_RESOURCE_INVALID] metadata (http://127.0.0.1:9105/.well-known/oauth-protected-resource/mcp) has no resource field
 ```
 
 **Verified:** yes.
@@ -749,7 +749,7 @@ VIRHE    [AUTH_RESOURCE_INVALID] metatiedoista (http://127.0.0.1:9105/.well-know
 **Before / After:** with the server at `https://x/mcp`, change `"resource": "https://x/other"` to `"resource": "https://x/mcp"`.
 
 ```
-VAROITUS [AUTH_RESOURCE_MISMATCH] metatietojen resource 'http://127.0.0.1:1/other' ei vastaa palvelimen osoitetta 'http://127.0.0.1:9106/mcp': asiakas voi hylätä tokenin tai pyytää sitä väärälle resurssille
+WARNING [AUTH_RESOURCE_MISMATCH] metadata resource 'http://127.0.0.1:1/other' does not match the server URL 'http://127.0.0.1:9106/mcp': a client may reject the token or request it for the wrong resource
 ```
 
 Behind a reverse proxy the public URL is the one that must match.
@@ -765,7 +765,7 @@ Behind a reverse proxy the public URL is the one that must match.
 **Fix:** add the list (example under `AUTH_RESOURCE_METADATA_MISSING`).
 
 ```
-VIRHE    [AUTH_SERVERS_MISSING] metatiedoista puuttuu authorization_servers: asiakas ei tiedä, missä kirjaudutaan
+ERROR   [AUTH_SERVERS_MISSING] metadata has no authorization_servers: the client does not know where to log in
 ```
 
 **Verified:** yes (empty list).
@@ -779,8 +779,8 @@ VIRHE    [AUTH_SERVERS_MISSING] metatiedoista puuttuu authorization_servers: asi
 **Before / After:** `"token_endpoint": "http://auth.example.com/token"` becomes `"https://auth.example.com/token"`. Use https for every address in the metadata.
 
 ```
-VIRHE    [AUTH_INSECURE_URL] valtuutuspalvelin ei ole https: http://example.com
-VIRHE    [AUTH_INSECURE_URL] token_endpoint ei ole https: http://example.com/token
+ERROR   [AUTH_INSECURE_URL] authorization server is not https: http://example.com
+ERROR   [AUTH_INSECURE_URL] token_endpoint is not https: http://example.com/token
 ```
 
 **Verified:** yes (both forms).
@@ -794,7 +794,7 @@ VIRHE    [AUTH_INSECURE_URL] token_endpoint ei ole https: http://example.com/tok
 **Fix:** publish the authorization server metadata at one of those paths (identity providers usually have a setting for it), or point `authorization_servers` to the right issuer address.
 
 ```
-VIRHE    [AUTH_SERVER_METADATA_MISSING] valtuutuspalvelimen metatietoja (RFC 8414 / OpenID) ei löytynyt: http://127.0.0.1:9109/.well-known/oauth-authorization-server (404); http://127.0.0.1:9109/.well-known/openid-configuration (404)
+ERROR   [AUTH_SERVER_METADATA_MISSING] authorization server metadata (RFC 8414 / OpenID) not found: http://127.0.0.1:9109/.well-known/oauth-authorization-server (404); http://127.0.0.1:9109/.well-known/openid-configuration (404)
 ```
 
 **Verified:** yes.
@@ -810,7 +810,7 @@ VIRHE    [AUTH_SERVER_METADATA_MISSING] valtuutuspalvelimen metatietoja (RFC 841
 ```
 
 ```
-VIRHE    [AUTH_ENDPOINT_MISSING] valtuutuspalvelimen metatiedoista puuttuu token_endpoint
+ERROR   [AUTH_ENDPOINT_MISSING] authorization server metadata has no token_endpoint
 ```
 
 **Verified:** yes (missing `token_endpoint`).
@@ -824,7 +824,7 @@ VIRHE    [AUTH_ENDPOINT_MISSING] valtuutuspalvelimen metatiedoista puuttuu token
 **Before / After:** add `"code_challenge_methods_supported": ["S256"]` to the authorization server metadata (and enable PKCE in the server, if it is a setting).
 
 ```
-VIRHE    [AUTH_PKCE_S256_MISSING] code_challenge_methods_supported puuttuu tai siitä puuttuu S256: MCP-asiakkaat vaativat PKCE:n ja voivat kieltäytyä kirjautumasta
+ERROR   [AUTH_PKCE_S256_MISSING] code_challenge_methods_supported is missing or lacks S256: MCP clients require PKCE and may refuse to log in
 ```
 
 **Verified:** yes (before state).
@@ -838,7 +838,7 @@ VIRHE    [AUTH_PKCE_S256_MISSING] code_challenge_methods_supported puuttuu tai s
 **Before / After:** `"grant_types_supported": ["authorization_code"]` becomes `["authorization_code", "refresh_token"]`, and make sure the server really issues refresh tokens.
 
 ```
-VAROITUS [AUTH_REFRESH_TOKEN_UNSUPPORTED] grant_types_supported ei sisällä refresh_token-myöntöä: kun token vanhenee, käyttäjä joutuu kirjautumaan uudelleen ("connection expired")
+WARNING [AUTH_REFRESH_TOKEN_UNSUPPORTED] grant_types_supported does not include refresh_token: when the token expires, the user has to log in again ("connection expired")
 ```
 
 **Verified:** yes (before state).
@@ -852,7 +852,7 @@ VAROITUS [AUTH_REFRESH_TOKEN_UNSUPPORTED] grant_types_supported ei sisällä ref
 **Fix:** enable dynamic client registration or client ID metadata documents in the authorization server, or document the `client_id` for your users.
 
 ```
-HUOMIO   [AUTH_REGISTRATION_UNSUPPORTED] ei registration_endpointia eikä client_id_metadata_document_supported-tukea: asiakkaalle pitää antaa valmis client_id
+INFO    [AUTH_REGISTRATION_UNSUPPORTED] no registration_endpoint and no client_id_metadata_document_supported: the client must be given a pre-registered client_id
 ```
 
 **Verified:** yes (before state).
@@ -862,7 +862,7 @@ HUOMIO   [AUTH_REGISTRATION_UNSUPPORTED] ei registration_endpointia eikä client
 **Means:** all OAuth checks passed. It appears only when no other `AUTH_*` finding above info level exists.
 
 ```
-HUOMIO   [AUTH_OK] OAuth-metatiedot kunnossa (resurssi http://127.0.0.1:9101/.well-known/oauth-protected-resource/mcp, valtuutuspalvelin http://127.0.0.1:9101)
+INFO    [AUTH_OK] OAuth metadata is fine (resource http://127.0.0.1:9101/.well-known/oauth-protected-resource/mcp, authorization server http://127.0.0.1:9101)
 ```
 
 **Verified:** yes (a test server with correct metadata).

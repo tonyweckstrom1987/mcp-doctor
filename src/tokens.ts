@@ -53,7 +53,7 @@ export function tokenFindings(r: TokenReport): Finding[] {
         id: "TOOL_TOKENS_HIGH",
         severity: "info",
         tool: t.tool,
-        message: `työkalun määrittely vie arviolta ${t.tokens} tokenia jokaisesta pyynnöstä (raja ${TOOL_TOKENS_HIGH}); lyhennä kuvausta tai skeeman kenttäkuvauksia`,
+        message: `tool definition takes about ${t.tokens} tokens of every request (limit ${TOOL_TOKENS_HIGH}); shorten the description or the schema field descriptions`,
       });
     }
   }
@@ -62,7 +62,7 @@ export function tokenFindings(r: TokenReport): Finding[] {
     out.push({
       id: "TOOLS_TOKEN_BUDGET_EXCEEDED",
       severity: "error",
-      message: `työkalumäärittelyt vievät arviolta ${r.total} tokenia, raja on ${r.budget} (--max-tokens); suurimmat: ${top}`,
+      message: `tool definitions take about ${r.total} tokens, the budget is ${r.budget} (--max-tokens); largest: ${top}`,
     });
   }
   return out;

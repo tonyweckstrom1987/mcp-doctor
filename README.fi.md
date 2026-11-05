@@ -55,26 +55,26 @@ Esimerkkituloste (mcp-server-starter, savuajolla):
 
 ```
 mcp-doctor: node ../starter/dist/index.js
-Palvelin: mcp-server-starter 0.1.0, 2 työkalua
-Savuajo:
+Server: mcp-server-starter 0.1.0, 2 tools
+Smoke calls:
   OK     greet (4 ms)
   OK     add (1 ms)
-Yhteenveto: 0 virhettä, 0 varoitusta, 0 huomiota -> OK
+Summary: errors 0, warnings 0, info 0 -> OK
 ```
 
 Ja kun palvelimessa on vikoja (testipalvelin, jossa on päällekkäisiä ja vajaasti kuvattuja työkaluja), tulos on virheitä ja poistumiskoodi `1`:
 
 ```
 mcp-doctor: node bad-tools-server.mjs
-Palvelin: huono-palvelin 0.0.1, 4 työkalua
+Server: huono-palvelin 0.0.1, 4 tools
 VIRHE    [TOOL_DUPLICATE] dup: työkalun nimi esiintyy 2 kertaa
 VIRHE    [TOOL_NAME_INVALID] no desc!: nimi on tyhjä, yli 128 merkkiä tai sisältää sallittujen merkkien (A-Z a-z 0-9 _ - .) ulkopuolisia merkkejä
 VIRHE    [SCHEMA_REQUIRED_UNKNOWN] loose: pakollinen kenttä 'z' ei ole properties-listassa
-VAROITUS [TOOL_DESC_MISSING] no desc!: kuvaus puuttuu: malli ei tiedä milloin työkalua kuuluu käyttää
-VAROITUS [SCHEMA_PROP_UNTYPED] loose: kentällä 'x' ei ole tyyppiä (type/enum/const/$ref/anyOf/oneOf/allOf): skeema on liian väljä
-VAROITUS [SCHEMA_PROP_DESC_MISSING] loose: kentältä 'x' puuttuu kuvaus
-VAROITUS [SCHEMA_PROP_DESC_MISSING] loose: kentältä 'y' puuttuu kuvaus
-Yhteenveto: 3 virhettä, 4 varoitusta, 0 huomiota -> EPÄONNISTUI
+WARNING [TOOL_DESC_MISSING] no desc!: description is missing: the model cannot tell when to use this tool
+WARNING [SCHEMA_PROP_UNTYPED] loose: field 'x' has no type (type/enum/const/$ref/anyOf/oneOf/allOf): the schema is too loose
+WARNING [SCHEMA_PROP_DESC_MISSING] loose: field 'x' has no description
+WARNING [SCHEMA_PROP_DESC_MISSING] loose: field 'y' has no description
+Summary: errors 3, warnings 4, info 0 -> FAILED
 ```
 
 | Valinta | Selitys |
@@ -227,7 +227,7 @@ mcp-doctor on tarkoituksella pieni ja rajattu yhteen tehtävään: yksi komento 
 - **Savuajo vain nimeämillesi työkaluille:** työkaluja kutsutaan vain tiedostossa (`--smoke`) nimetyillä, itse määritellyillä argumenteilla. Mitään ei kutsuta arvaamalla.
 - **Ei verkkoa muualle:** työkalu puhuu vain osoittamallesi palvelimelle. Ei API-avaimia, ei tilastoja, ei tiliä.
 - **Eristetty Action:** stdio-palvelin näkee vain nimeämäsi ympäristömuuttujat, ja Actionin syötteet eivät pääse komentoriville.
-- **Pieni ja testattu:** vähän koodia, 164 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
+- **Pieni ja testattu:** vähän koodia, 188 testiä oikeilla stdio- ja HTTP-testipalvelimilla.
 
 ## Rajaukset
 
@@ -238,7 +238,7 @@ Ei tue vanhaa SSE-siirtoa eikä OAuth-kirjautumista. Tarkistaa työkalut, ei `re
 ```bash
 npm ci
 npm run typecheck
-npm test        # 164 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
+npm test        # 188 testiä, käynnistää oikeita stdio- ja HTTP-testipalvelimia
 ```
 
 Testit ajetaan oikeita MCP-palvelimia vastaan (`test/fixtures/`): kunnossa oleva, huonosti määritelty, väärää protokollaversiota puhuva, heti kaatuva sekä sivuttava. Ennen julkaisua koodiin tehtiin tahallisia rikkomisia (mutaatiot), (22 kappaletta), ja jokainen niistä kaatoi testin.
