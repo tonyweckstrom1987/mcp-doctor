@@ -4,6 +4,10 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 ## [Julkaisematon]
 
+### Lisätty
+
+- `--sarif <tiedosto>` ja actionin syöte `sarif`: löydökset SARIF 2.1.0 -muodossa GitHubin code scanningia varten (`ruleId` = löydöskoodi, `level` error/warning/note, sijaintina tarkastettu komento tai osoite, `tool.driver.rules` kaikista koodeista). Tiedosto kirjoitetaan myös epäonnistuneesta ajosta. Esimerkki `examples/workflow-sarif.yml` (upload-sarif) ja README-merkki. Testit validoivat tuloksen OASISin SARIF-skeemaa vasten.
+
 ### Muutettu
 
 - Kun HTTP-palvelin torjuu yhteyden tilalla 401 tai 403, `CONNECT_FAILED`-viesti nimeää tilan ja antaa vihjeen jatkotoimista (`--bearer-env`, `--auth`). Estoa ei yritetä kiertää.
