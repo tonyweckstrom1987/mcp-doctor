@@ -144,6 +144,23 @@ describe("diagnose: poikkeavat tools/list-tilanteet", () => {
     expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_EMPTY"]);
   });
 
+  it("Tool-skeemaa rikkova työkalu ei kaada koko listaa: muut tarkistetaan ja syy on työkalukohtainen", async () => {
+    const r = await run("invalid-schema-server.mjs");
+    const ids = r.findings.map((f) => f.id);
+    expect(ids).not.toContain("TOOLS_LIST_FAILED");
+    expect(ids).not.toContain("TOOLS_EMPTY");
+    expect(ids.filter((i) => i === "TOOLS_LIST_SCHEMA_INVALID")).toHaveLength(1);
+    expect(r.findings.find((f) => f.id === "TOOLS_LIST_SCHEMA_INVALID")?.message).toContain("tools.1.inputSchema.type");
+    expect(r.findings.find((f) => f.id === "SCHEMA_NOT_OBJECT")?.tool).toBe("string_schema");
+    expect(r.findings.find((f) => f.id === "SCHEMA_REQUIRED_INVALID")?.tool).toBe("string_required");
+    expect(r.findings.find((f) => f.id === "OUTPUT_SCHEMA_NOT_OBJECT")?.tool).toBe("array_output");
+    expect(r.findings.find((f) => f.id === "TOOL_INVALID")?.message).toContain("kohta 4");
+    expect(r.toolCount).toBe(4);
+    expect(r.findings.some((f) => f.tool === "ok_tool")).toBe(false);
+    expect(r.tokens?.perTool.map((t) => t.tool)).toContain("ok_tool");
+    expect(r.ok).toBe(false);
+  });
+
   it("tools/list epäonnistuu: virhe, ei kaatumista", async () => {
     const r = await variant("listfails");
     expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);

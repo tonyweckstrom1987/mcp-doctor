@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { ErrorCode, McpError, ResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { lintTools } from "./lint.js";
 import { summarize } from "./report.js";
@@ -50,6 +50,47 @@ function firstText(content: unknown): string {
     }
   }
   return "";
+}
+
+/** SDK:n skeemavirheen (zod) kentät lyhyesti: "tools.1.inputSchema.type: Invalid input: ...". Muu virhe sellaisenaan. */
+function schemaIssues(e: unknown): string {
+  const issues = (e as { issues?: unknown } | null)?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) return errText(e);
+  const parts = issues.slice(0, 3).map((i) => {
+    const path = Array.isArray(i?.path) ? i.path.join(".") : "";
+    return `${path}: ${typeof i?.message === "string" ? i.message : "virheellinen"}`;
+  });
+  return short(parts.join("; ") + (issues.length > 3 ? ` (+${issues.length - 3} muuta)` : ""));
+}
+
+interface ToolPage {
+  tools: unknown[];
+  nextCursor?: string;
+  /** Asetettu, kun SDK hylkäsi sivun skeemavirheen takia ja työkalut luettiin raakavastauksesta. */
+  schemaError?: string;
+}
+
+/**
+ * Hakee yhden tools/list-sivun. SDK:n listTools hylkää koko sivun, jos yksikin työkalu rikkoo MCP:n Tool-skeemaa
+ * (esim. inputSchema.type ei ole "object"). Silloin sama sivu haetaan raakana, jotta lint kertoo työkalukohtaisen syyn
+ * ja muutkin työkalut tarkistetaan. Protokolla-, aikakatkaisu- ja yhteysvirheet (McpError) heitetään sellaisenaan.
+ */
+async function listToolsPage(client: Client, cursor: string | undefined, timeout: number): Promise<ToolPage> {
+  const params = cursor ? { cursor } : undefined;
+  try {
+    const res = await client.listTools(params, { timeout });
+    return { tools: res.tools, nextCursor: res.nextCursor };
+  } catch (e) {
+    if (e instanceof McpError) throw e;
+    let raw: Record<string, unknown>;
+    try {
+      raw = (await client.request({ method: "tools/list", params }, ResultSchema, { timeout })) as Record<string, unknown>;
+    } catch {
+      throw e;
+    }
+    if (!Array.isArray(raw.tools)) throw e;
+    return { tools: raw.tools, nextCursor: typeof raw.nextCursor === "string" && raw.nextCursor !== "" ? raw.nextCursor : undefined, schemaError: schemaIssues(e) };
+  }
 }
 
 function build(opts: DiagnoseOptions, server: Report["server"], toolCount: number, findings: Finding[], smoke: SmokeResult[], tokens?: Report["tokens"]): Report {
@@ -115,8 +156,18 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
             cursor = undefined;
             break;
           }
-          const res = await client.listTools(cursor ? { cursor } : undefined, { timeout: requestTimeout() });
-          tools.push(...(res.tools as ToolLike[]));
+          const res = await listToolsPage(client, cursor, requestTimeout());
+          if (res.schemaError && !findings.some((f) => f.id === "TOOLS_LIST_SCHEMA_INVALID")) {
+            findings.push({ id: "TOOLS_LIST_SCHEMA_INVALID", severity: "error", message: `tools/list-vastaus rikkoo MCP:n Tool-skeemaa, ja TypeScript-SDK:n asiakas hylkää koko listan: ${res.schemaError}. Työkalut tarkistettiin raakavastauksesta` });
+          }
+          res.tools.forEach((t, i) => {
+            const name = (t as { name?: unknown } | null)?.name;
+            if (t === null || typeof t !== "object" || Array.isArray(t) || typeof name !== "string") {
+              findings.push({ id: "TOOL_INVALID", severity: "error", message: `tools/list-sivun ${pages + 1} kohta ${i} ei ole työkaluobjekti, jolla on merkkijononimi` });
+              return;
+            }
+            tools.push(t as ToolLike);
+          });
           cursor = res.nextCursor;
           pages++;
           if (cursor) {

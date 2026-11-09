@@ -99,6 +99,8 @@ Poistumiskoodit: `0` kunnossa, `1` löydöksiä (virhe, tai varoitus `--strict`-
 | `SERVER_INFO_MISSING` | varoitus | palvelin ei kerro nimeään |
 | `TOOLS_CAPABILITY_MISSING` | varoitus | palvelin ei ilmoita tools-kykyä |
 | `TOOLS_LIST_FAILED` | virhe | `tools/list` epäonnistui |
+| `TOOLS_LIST_SCHEMA_INVALID` | virhe | `tools/list`-vastaus rikkoo MCP:n Tool-skeemaa, joten TypeScript-SDK:n asiakas hylkää koko listan; työkalut tarkistetaan silti raakavastauksesta |
+| `TOOL_INVALID` | virhe | listan alkio ei ole objekti, jolla on merkkijono `name` |
 | `TOOLS_EMPTY` | varoitus | tools-kyky ilmoitettu, mutta lista tyhjä |
 | `TOOLS_PAGINATION_LIMIT` | varoitus | lista jatkui yli 50 sivua, luku keskeytettiin |
 | `TOOL_DUPLICATE` | virhe | sama nimi useammin kuin kerran |

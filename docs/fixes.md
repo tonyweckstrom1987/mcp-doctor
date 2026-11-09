@@ -100,9 +100,27 @@ VIRHE    [TOTAL_TIMEOUT] kokonaisaikaraja 450 ms ylittyi: tools/list ei valmistu
 
 ### `TOOLS_LIST_FAILED` (error)
 
-**Means:** the `tools/list` request failed. The message holds the error text. With the TypeScript SDK client the same code also appears when the server sends a tool definition that breaks the MCP schema, for example an `inputSchema` whose `type` is not `"object"` or a `required` that is not an array.
+**Means:** the `tools/list` request failed: the server returned a JSON-RPC error, timed out or closed the connection. The message holds the error text. A response that arrives but breaks the MCP Tool schema is reported as [`TOOLS_LIST_SCHEMA_INVALID`](#tools_list_schema_invalid-error) instead.
 
-**Why it matters:** a failed list means the client gets no tools from this server at all, not just from the broken one.
+**Why it matters:** a failed list means the client gets no tools from this server at all.
+
+**Before** (the `tools/list` handler throws):
+
+```
+VIRHE    [TOOLS_LIST_FAILED] tools/list epäonnistui: MCP error -32603: lista hajosi
+```
+
+**After:** fix the server-side error in the handler; the server's own log usually has the stack trace.
+
+**Check:** run again; the tool count appears on the `Palvelin:` line.
+
+**Verified:** yes, for a handler that throws (`MCP error -32603`) and for a timeout.
+
+### `TOOLS_LIST_SCHEMA_INVALID` (error)
+
+**Means:** the server answered `tools/list`, but at least one tool definition breaks the MCP Tool schema, for example an `inputSchema` whose `type` is not `"object"`, a `required` that is not an array, or an `outputSchema` that is not an object. The TypeScript SDK client rejects such a response as a whole. mcp-doctor reads the same page raw, so the broken tool is named by the schema codes below (`SCHEMA_NOT_OBJECT`, `SCHEMA_REQUIRED_INVALID`, `OUTPUT_SCHEMA_NOT_OBJECT`) and the other tools are still checked. The message lists the failing field paths (at most three).
+
+**Why it matters:** one broken definition means a client built on the SDK gets no tools from this server at all, not just from the broken one.
 
 **Before** (`required` is a string):
 
@@ -111,14 +129,34 @@ VIRHE    [TOTAL_TIMEOUT] kokonaisaikaraja 450 ms ylittyi: tools/list ei valmistu
 ```
 
 ```
-VIRHE    [TOOLS_LIST_FAILED] tools/list epäonnistui: [ { "expected": "array", "code": "invalid_type", "path": [ "tools", 0, "inputSchema", "required" ], "message": "Invalid input: expected array, received string" } ]
+VIRHE    [TOOLS_LIST_SCHEMA_INVALID] tools/list-vastaus rikkoo MCP:n Tool-skeemaa, ja TypeScript-SDK:n asiakas hylkää koko listan: tools.0.inputSchema.required: Invalid input: expected array, received string. Työkalut tarkistettiin raakavastauksesta
+VIRHE    [SCHEMA_REQUIRED_INVALID] search: required ei ole merkkijonolista
 ```
 
-**After:** read `path` in the message: it points to the exact field. Here `"required": ["q"]`.
+**After:** fix the tool named by the schema code. Here `"required": ["q"]`.
 
-**Check:** run again; the tool count appears on the `Palvelin:` line.
+**Check:** run again; this code and the schema code disappear.
 
-**Verified:** yes, for both a handler that throws (`MCP error -32603`) and the schema example above.
+**Verified:** yes, against a local test server (`test/fixtures/invalid-schema-server.mjs`) with a string schema, a string `required`, an array `outputSchema` and a nameless entry.
+
+### `TOOL_INVALID` (error)
+
+**Means:** an entry in the `tools/list` response is not an object with a string `name`. It is skipped; the message gives its page and position. Always comes with `TOOLS_LIST_SCHEMA_INVALID`.
+
+**Why it matters:** a client cannot call a tool without a name, and the SDK client rejects the whole list because of it.
+
+**Before / After:**
+
+```json
+// Before
+{ "description": "Searches documents.", "inputSchema": { "type": "object", "properties": {} } }
+// After
+{ "name": "search", "description": "Searches documents.", "inputSchema": { "type": "object", "properties": {} } }
+```
+
+**Check:** run again; the tool count on the `Palvelin:` line grows by one.
+
+**Verified:** yes, against the same local test server.
 
 ### `TOOLS_EMPTY` (warning)
 
@@ -279,7 +317,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 
 **Check:** re-run; the tool is listed without errors.
 
-**Not verified as `SCHEMA_NOT_OBJECT`:** with mcp-doctor 0.5.0 and its bundled SDK client, this definition is rejected while the list is being read, so the run reports [`TOOLS_LIST_FAILED`](#tools_list_failed-error) with the field path instead (`"path": [ "tools", 0, "inputSchema", "type" ]`, verified). The code itself is covered only by a unit test (`test/lint.test.ts`). The fix is the same.
+**Verified:** yes, the run reports `SCHEMA_NOT_OBJECT` for the tool together with [`TOOLS_LIST_SCHEMA_INVALID`](#tools_list_schema_invalid-error) (local test server).
 
 ### `OUTPUT_SCHEMA_NOT_OBJECT` (error)
 
@@ -298,7 +336,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 
 **Check:** re-run; the tool is listed without errors.
 
-**Not verified as `OUTPUT_SCHEMA_NOT_OBJECT`:** like the previous code, the SDK client rejects the list first, and the run shows `TOOLS_LIST_FAILED` with `"path": [ "tools", 0, "outputSchema", "type" ]` (verified). The code itself is covered only by a unit test.
+**Verified:** yes, together with `TOOLS_LIST_SCHEMA_INVALID` (local test server).
 
 ### `SCHEMA_REQUIRED_INVALID` (error)
 
@@ -317,7 +355,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 
 **Check:** re-run; the tool is listed without errors.
 
-**Not verified as `SCHEMA_REQUIRED_INVALID`:** a string-valued `required` at the top level is rejected by the SDK client while reading the list, so the run reports `TOOLS_LIST_FAILED` with `"path": [ "tools", 0, "inputSchema", "required" ]` (verified). The code itself is covered only by a unit test.
+**Verified:** yes for the top level, together with `TOOLS_LIST_SCHEMA_INVALID` (local test server). Nested objects are covered by a unit test.
 
 ### `SCHEMA_REQUIRED_UNKNOWN` (error)
 
