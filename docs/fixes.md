@@ -100,7 +100,7 @@ VIRHE    [TOTAL_TIMEOUT] kokonaisaikaraja 450 ms ylittyi: tools/list ei valmistu
 
 ### `TOOLS_LIST_FAILED` (error)
 
-**Means:** the `tools/list` request failed: the server returned a JSON-RPC error, timed out or closed the connection. The message holds the error text. A response that arrives but breaks the MCP Tool schema is reported as [`TOOLS_LIST_SCHEMA_INVALID`](#tools_list_schema_invalid-error) instead.
+**Means:** the `tools/list` request failed: the server returned a JSON-RPC error, timed out or closed the connection, or the SDK client could not compile a tool's `outputSchema` (for example `"type": "foo"` inside it; the message then has no field path). The message holds the error text. If a broken list was being re-read raw and that read failed too, the message starts with `raakahaku epäonnistui` and also lists the original schema fields. A response that arrives but breaks the MCP Tool schema is reported as [`TOOLS_LIST_SCHEMA_INVALID`](#tools_list_schema_invalid-error) instead.
 
 **Why it matters:** a failed list means the client gets no tools from this server at all.
 
@@ -114,11 +114,11 @@ VIRHE    [TOOLS_LIST_FAILED] tools/list epäonnistui: MCP error -32603: lista ha
 
 **Check:** run again; the tool count appears on the `Palvelin:` line.
 
-**Verified:** yes, for a handler that throws (`MCP error -32603`) and for a timeout.
+**Verified:** yes, for a handler that throws (`MCP error -32603`), a transport error, an `outputSchema` the SDK cannot compile, and `--total-timeout-ms` running out (local test servers).
 
 ### `TOOLS_LIST_SCHEMA_INVALID` (error)
 
-**Means:** the server answered `tools/list`, but at least one tool definition breaks the MCP Tool schema, for example an `inputSchema` whose `type` is not `"object"`, a `required` that is not an array, or an `outputSchema` that is not an object. The TypeScript SDK client rejects such a response as a whole. mcp-doctor reads the same page raw, so the broken tool is named by the schema codes below (`SCHEMA_NOT_OBJECT`, `SCHEMA_REQUIRED_INVALID`, `OUTPUT_SCHEMA_NOT_OBJECT`) and the other tools are still checked. The message lists the failing field paths (at most three).
+**Means:** the server answered `tools/list`, but at least one tool definition breaks the MCP Tool schema, for example an `inputSchema` whose `type` is not `"object"`, a `required` that is not an array, or an `outputSchema` that is not an object. The TypeScript SDK client rejects such a response as a whole. mcp-doctor reads the same page raw, so the broken tool is named by the schema codes below (`SCHEMA_NOT_OBJECT`, `SCHEMA_REQUIRED_INVALID`, `OUTPUT_SCHEMA_NOT_OBJECT`) and the other tools are still checked. The message lists the failing field paths (at most three); paths are relative to the page, and `sivu N:` is added when the page is not the first.
 
 **Why it matters:** one broken definition means a client built on the SDK gets no tools from this server at all, not just from the broken one.
 
@@ -137,7 +137,7 @@ VIRHE    [SCHEMA_REQUIRED_INVALID] search: required ei ole merkkijonolista
 
 **Check:** run again; this code and the schema code disappear.
 
-**Verified:** yes, against a local test server (`test/fixtures/invalid-schema-server.mjs`) with a string schema, a string `required`, an array `outputSchema` and a nameless entry.
+**Verified:** yes, against a local test server (`test/fixtures/invalid-schema-server.mjs`) with a string schema, a string `required`, an array `outputSchema` and a nameless entry, and with the broken tool on page 2 of 3.
 
 ### `TOOL_INVALID` (error)
 
