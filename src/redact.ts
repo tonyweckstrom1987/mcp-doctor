@@ -25,20 +25,25 @@ function maskUrl(arg: string): string {
   } catch {
     return arg;
   }
-  if (!u.username && !u.password && !u.search) return arg;
+  const secretHash = u.hash.includes("=");
+  if (!u.username && !u.password && !u.search && !secretHash) return arg;
   const auth = u.username || u.password ? `${MASK}@` : "";
   const query = u.search ? `?${MASK}` : "";
-  return `${u.protocol}//${auth}${u.host}${u.pathname}${query}${u.hash}`;
+  const hash = secretHash ? `#${MASK}` : u.hash;
+  return `${u.protocol}//${auth}${u.host}${u.pathname}${query}${hash}`;
 }
 
-const HEADER = /^(\s*)([A-Za-z0-9-]+)(\s*:\s*)(.*)$/s;
-const BEARER = /^(\s*)(bearer|basic|token)(\s+)(\S.*)$/is;
+const HEADER = /^(\s*)([A-Za-z0-9_-]+)(\s*:\s*)(.*)$/s;
+// Vain tunnetut tai selvästi salaiset otsakenimet: muuten esim. docker-tagi `auth-service:latest` peittyisi.
+const SECRET_HEADER = /^(authorization|proxy-authorization|cookie|[a-z0-9_-]*(api[-_]?key|access[-_]?key|token|secret|password)|x-[a-z0-9_-]*auth[a-z0-9_-]*)$/i;
+const BEARER = /^(\s*)(bearer)(\s+)(\S+)\s*$/i;
+const BASIC_OR_TOKEN = /^(\s*)(basic|token)(\s+)([A-Za-z0-9._~+/=-]{8,})\s*$/i;
 
-/** Peittää yksittäisen arvon: salainen otsake, Bearer-arvo tai URL:n tunnukset ja kyselyparametrit. */
+/** Peittää yksittäisen arvon: salainen otsake, Bearer/Basic-arvo tai URL:n tunnukset ja kyselyparametrit. */
 function maskValue(value: string): string {
   const h = HEADER.exec(value);
-  if (h && looksSecret(h[2]) && h[4] !== "") return `${h[1]}${h[2]}${h[3]}${MASK}`;
-  const b = BEARER.exec(value);
+  if (h && SECRET_HEADER.test(h[2]) && h[4] !== "") return `${h[1]}${h[2]}${h[3]}${MASK}`;
+  const b = BEARER.exec(value) ?? BASIC_OR_TOKEN.exec(value);
   if (b) return `${b[1]}${b[2]}${b[3]}${MASK}`;
   return maskUrl(value);
 }
