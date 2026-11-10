@@ -15,6 +15,10 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 - `--auth` ei enää väitä kirjautumisen olevan tarpeeton, kun palvelin vastaa 403: uusi huomio `AUTH_FORBIDDEN` kertoo eston.
 - JSON-ulostulo muuttuu: uusi tunnus `AUTH_FORBIDDEN` korvaa 403-tilassa tunnuksen `AUTH_NOT_REQUIRED`. Jos käsittelet `--auth --json` -ulostuloa koneellisesti, päivitä tunnuksen tarkistus.
 
+### Korjattu
+
+- Tulostettavan stdio-komennon peitto vuoti tunnuksia kolmessa tavallisessa muodossa: tavallisen lipun `=`-arvo (`--db=postgres://u:p@h/x`), ympäristösijoituksen URL (`DATABASE_URL=postgres://u:p@h/x`) ja HTTP-otsake arvona (`npx mcp-remote <url> --header "Authorization: Bearer ..."`). Nyt URL:n tunnukset ja kyselyparametrit, salaiselta kuulostavan otsakkeen arvo (`Authorization: ***`) ja pelkkä `Bearer ***` peitetään myös näissä, samoin URL:n fragmentti, jossa on `=` (esim. `#access_token=…`). Otsakkeena peitetään vain tunnetut tai selvästi salaiset nimet, joten esim. `auth-service:latest` pysyy ennallaan. Palvelin käynnistetään edelleen alkuperäisillä argumenteilla.
+
 ## [0.5.0] - 2026-11-02
 
 ### Lisätty
