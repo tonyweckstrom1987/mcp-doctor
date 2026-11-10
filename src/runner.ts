@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { ErrorCode, McpError, ResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { lintTools } from "./lint.js";
 import { summarize } from "./report.js";
@@ -50,6 +50,55 @@ function firstText(content: unknown): string {
     }
   }
   return "";
+}
+
+/** SDK:n skeemavirheen (zod) kentät lyhyesti: "tools.1.inputSchema.type: Invalid input: ...". Muu virhe sellaisenaan. */
+function schemaIssues(e: unknown): string {
+  const issues = (e as { issues?: unknown } | null)?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) return errText(e);
+  const parts = issues.slice(0, 3).map((i) => {
+    const path = Array.isArray(i?.path) ? i.path.join(".") : "";
+    return `${path}: ${typeof i?.message === "string" ? i.message : "virheellinen"}`;
+  });
+  return short(parts.join("; ") + (issues.length > 3 ? ` (+${issues.length - 3} muuta)` : ""));
+}
+
+interface ToolPage {
+  tools: unknown[];
+  nextCursor?: string;
+  /** Asetettu, kun SDK hylkäsi sivun skeemavirheen takia ja työkalut luettiin raakavastauksesta. */
+  schemaError?: string;
+}
+
+/** Tosi vain SDK:n skeemavirheelle (zod: issues-taulukko). Kuljetus-, ajv- ja muut virheet eivät käy. */
+function isSchemaError(e: unknown): boolean {
+  const issues = (e as { issues?: unknown } | null)?.issues;
+  return Array.isArray(issues) && issues.length > 0;
+}
+
+/**
+ * Hakee yhden tools/list-sivun. SDK:n listTools hylkää koko sivun, jos yksikin työkalu rikkoo MCP:n Tool-skeemaa
+ * (esim. inputSchema.type ei ole "object"). Silloin sama sivu haetaan raakana, jotta lint kertoo työkalukohtaisen syyn
+ * ja muutkin työkalut tarkistetaan. Muut virheet (McpError, kuljetusvirheet, SDK:n ajv-käännös) heitetään sellaisenaan,
+ * samoin jos kokonaisaika on lopussa tai raakahaku epäonnistuu.
+ */
+async function listToolsPage(client: Client, cursor: string | undefined, timeout: () => number, overBudget: () => boolean): Promise<ToolPage> {
+  const params = cursor ? { cursor } : undefined;
+  try {
+    const res = await client.listTools(params, { timeout: timeout() });
+    return { tools: res.tools, nextCursor: res.nextCursor };
+  } catch (e) {
+    if (!isSchemaError(e) || overBudget()) throw e;
+    let raw: Record<string, unknown>;
+    try {
+      raw = (await client.request({ method: "tools/list", params }, ResultSchema, { timeout: timeout() })) as Record<string, unknown>;
+    } catch (e2) {
+      // Raakahaun oma virhe (esim. aikakatkaisu) ensin, koska viesti lyhennetään lopusta; skeemavirhe perään.
+      throw new Error(`raakahaku epäonnistui: ${errText(e2)}; alkuperäinen skeemavirhe: ${schemaIssues(e)}`);
+    }
+    if (!Array.isArray(raw.tools)) throw e;
+    return { tools: raw.tools, nextCursor: typeof raw.nextCursor === "string" && raw.nextCursor !== "" ? raw.nextCursor : undefined, schemaError: schemaIssues(e) };
+  }
 }
 
 function build(opts: DiagnoseOptions, server: Report["server"], toolCount: number, findings: Finding[], smoke: SmokeResult[], tokens?: Report["tokens"]): Report {
@@ -115,8 +164,18 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
             cursor = undefined;
             break;
           }
-          const res = await client.listTools(cursor ? { cursor } : undefined, { timeout: requestTimeout() });
-          tools.push(...(res.tools as ToolLike[]));
+          const res = await listToolsPage(client, cursor, requestTimeout, overBudget);
+          if (res.schemaError && !findings.some((f) => f.id === "TOOLS_LIST_SCHEMA_INVALID")) {
+            findings.push({ id: "TOOLS_LIST_SCHEMA_INVALID", severity: "error", message: `tools/list-vastaus rikkoo MCP:n Tool-skeemaa, ja TypeScript-SDK:n asiakas hylkää koko listan: ${pages > 0 ? `sivu ${pages + 1}: ` : ""}${res.schemaError}. Työkalut tarkistettiin raakavastauksesta` });
+          }
+          res.tools.forEach((t, i) => {
+            const name = (t as { name?: unknown } | null)?.name;
+            if (t === null || typeof t !== "object" || Array.isArray(t) || typeof name !== "string") {
+              findings.push({ id: "TOOL_INVALID", severity: "error", message: `tools/list-sivun ${pages + 1} kohta ${i} ei ole työkaluobjekti, jolla on merkkijononimi` });
+              return;
+            }
+            tools.push(t as ToolLike);
+          });
           cursor = res.nextCursor;
           pages++;
           if (cursor) {
@@ -131,7 +190,7 @@ export async function diagnose(opts: DiagnoseOptions): Promise<Report> {
         if (cursor) findings.push({ id: "TOOLS_PAGINATION_LIMIT", severity: "warning", message: `työkalulistaus keskeytettiin ${MAX_PAGES} sivun jälkeen` });
       } catch (e) {
         toolListMissing = true;
-        findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list epäonnistui: ${errText(e)}` });
+        findings.push({ id: "TOOLS_LIST_FAILED", severity: "error", message: `tools/list epäonnistui: ${schemaIssues(e)}` });
         if (overBudget()) markTotal("tools/list ei valmistunut ajoissa");
       }
       if (tools.length === 0 && !findings.some((f) => f.id === "TOOLS_LIST_FAILED")) {

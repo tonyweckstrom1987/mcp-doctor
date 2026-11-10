@@ -105,6 +105,8 @@ Fields: `tool` (required), `arguments` (default `{}`), `expectError` (default `f
 | `SERVER_INFO_MISSING` | warning | the server does not report its name |
 | `TOOLS_CAPABILITY_MISSING` | warning | the server does not declare the tools capability |
 | `TOOLS_LIST_FAILED` | error | `tools/list` failed |
+| `TOOLS_LIST_SCHEMA_INVALID` | error | the `tools/list` response breaks the MCP Tool schema, so the TypeScript SDK client rejects the whole list; the tools are still checked from the raw response |
+| `TOOL_INVALID` | error | a list entry is not an object with a string `name` |
 | `TOOLS_EMPTY` | warning | tools capability declared, but the list is empty |
 | `TOOLS_PAGINATION_LIMIT` | warning | the list continued past 50 pages, reading was stopped |
 | `TOOLS_PAGINATION_LOOP` | warning | the server returned the same `nextCursor` again, listing was stopped |

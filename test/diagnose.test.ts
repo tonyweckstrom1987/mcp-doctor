@@ -144,6 +144,90 @@ describe("diagnose: poikkeavat tools/list-tilanteet", () => {
     expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_EMPTY"]);
   });
 
+  it("Tool-skeemaa rikkova työkalu ei kaada koko listaa: muut tarkistetaan ja syy on työkalukohtainen", async () => {
+    const r = await run("invalid-schema-server.mjs");
+    const ids = r.findings.map((f) => f.id);
+    expect(ids).not.toContain("TOOLS_LIST_FAILED");
+    expect(ids).not.toContain("TOOLS_EMPTY");
+    expect(ids.filter((i) => i === "TOOLS_LIST_SCHEMA_INVALID")).toHaveLength(1);
+    expect(r.findings.find((f) => f.id === "TOOLS_LIST_SCHEMA_INVALID")?.message).toContain("tools.1.inputSchema.type");
+    expect(r.findings.find((f) => f.id === "SCHEMA_NOT_OBJECT")?.tool).toBe("string_schema");
+    expect(r.findings.find((f) => f.id === "SCHEMA_REQUIRED_INVALID")?.tool).toBe("string_required");
+    expect(r.findings.find((f) => f.id === "OUTPUT_SCHEMA_NOT_OBJECT")?.tool).toBe("array_output");
+    expect(r.findings.find((f) => f.id === "TOOL_INVALID")?.message).toContain("kohta 4");
+    expect(r.toolCount).toBe(4);
+    expect(r.findings.some((f) => f.tool === "ok_tool")).toBe(false);
+    expect(r.tokens?.perTool.map((t) => t.tool)).toContain("ok_tool");
+    expect(r.ok).toBe(false);
+  });
+
+  function runInvalid(mode: string, extra: { totalTimeoutMs?: number; wrap?: (t: StdioClientTransport) => void } = {}) {
+    const out = { stderr: "" };
+    const transport = new StdioClientTransport({ command: NODE, args: [fixture("invalid-schema-server.mjs"), mode], stderr: "pipe" });
+    transport.stderr?.on("data", (d: Buffer) => void (out.stderr += d.toString()));
+    extra.wrap?.(transport);
+    const report = diagnose({ transport, target: mode, timeoutMs: 10000, totalTimeoutMs: extra.totalTimeoutMs, strict: false });
+    return { report, out };
+  }
+  const listCalls = (stderr: string) => stderr.split("\n").filter((l) => l === "LIST").length;
+
+  it("rikkinäinen työkalu vasta sivulla 2: kaikki sivut luetaan ja viesti nimeää sivun", async () => {
+    const r = await runInvalid("page2").report;
+    expect(r.toolCount).toBe(3);
+    expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_SCHEMA_INVALID", "SCHEMA_NOT_OBJECT"]);
+    expect(r.findings[0].message).toContain("sivu 2: tools.0.inputSchema.type");
+  });
+
+  it("JSON-RPC-virhe ei johda raakahakuun: yksi kutsu ja TOOLS_LIST_FAILED", async () => {
+    const { report, out } = runInvalid("listfails");
+    const r = await report;
+    expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);
+    expect(listCalls(out.stderr)).toBe(1);
+  });
+
+  it("raakahaku epäonnistuu: TOOLS_LIST_FAILED kertoo molemmat syyt", async () => {
+    const { report, out } = runInvalid("rawfails");
+    const r = await report;
+    expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);
+    expect(r.findings[0].message).toContain("raakahaku epäonnistui");
+    expect(r.findings[0].message).toContain("raakahaku hajosi");
+    expect(r.findings[0].message).toContain("tools.1.inputSchema.type");
+    expect(listCalls(out.stderr)).toBe(2);
+  });
+
+  it("SDK:n ajv-käännösvirhe ei ole skeemavirhe: TOOLS_LIST_FAILED kuten ennen, ei raakahakua", async () => {
+    const { report, out } = runInvalid("badajv");
+    const r = await report;
+    expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);
+    expect(listCalls(out.stderr)).toBe(1);
+  });
+
+  it("kuljetusvirhe ei johda raakahakuun eikä väärään TOOLS_LIST_SCHEMA_INVALID-virheeseen", async () => {
+    const { report } = runInvalid("default", {
+      wrap: (t) => {
+        const orig = t.send.bind(t);
+        t.send = async (m, o) => {
+          if ((m as { method?: string }).method === "tools/list") throw new Error("Error POSTing to endpoint (HTTP 503): ohimenevä");
+          return orig(m, o);
+        };
+      },
+    });
+    const r = await report;
+    expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);
+    expect(r.findings[0].message).toContain("HTTP 503");
+  });
+
+  it("kokonaisaikaraja pitää myös raakahaussa: TOTAL_TIMEOUT eikä rajan ylitystä", async () => {
+    const started = Date.now();
+    const r = await runInvalid("slow", { totalTimeoutMs: 1000 }).report;
+    const ids = r.findings.map((f) => f.id);
+    expect(ids).toContain("TOTAL_TIMEOUT");
+    expect(ids).toContain("TOOLS_LIST_FAILED");
+    expect(ids).not.toContain("TOOLS_LIST_SCHEMA_INVALID");
+    // Aikaan sisältyy palvelinprosessin käynnistys ja sulku, joten raja on väljä; olennaista ovat löydökset.
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
   it("tools/list epäonnistuu: virhe, ei kaatumista", async () => {
     const r = await variant("listfails");
     expect(r.findings.map((f) => f.id)).toEqual(["TOOLS_LIST_FAILED"]);
