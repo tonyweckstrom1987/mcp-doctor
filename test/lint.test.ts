@@ -53,6 +53,24 @@ describe("lintTools", () => {
     expect(ids([{ ...good, inputSchema: { type: "object", properties: {}, required: [1] } }])).toContain("SCHEMA_REQUIRED_INVALID");
   });
 
+  it("required-listan duplikaatti on virhe, ja kenttä nimetään kerran", () => {
+    const schema = { type: "object", properties: { q: { type: "string", description: "haku" } }, required: ["q", "q", "q"] };
+    const f = lintTools([{ ...good, inputSchema: schema }]).filter((x) => x.id === "SCHEMA_REQUIRED_INVALID");
+    expect(f).toHaveLength(1);
+    expect(f[0].severity).toBe("error");
+    expect(f[0].message).toContain("'q'");
+    expect(f[0].message.match(/'q'/g)).toHaveLength(1);
+    // Yksilöllinen lista ei tuota löydöstä.
+    expect(ids([{ ...good, inputSchema: { ...schema, required: ["q"] } }])).not.toContain("SCHEMA_REQUIRED_INVALID");
+  });
+
+  it("required-duplikaatti sisäkkäisessä objektissa nimeää polun", () => {
+    const schema = { type: "object", properties: { o: { type: "object", description: "o", properties: { a: { type: "string", description: "a" } }, required: ["a", "a"] } } };
+    const f = lintTools([{ ...good, inputSchema: schema }]).filter((x) => x.id === "SCHEMA_REQUIRED_INVALID");
+    expect(f).toHaveLength(1);
+    expect(f[0].message).toContain("'o.a'");
+  });
+
   it("kenttä: puuttuva kuvaus ja tyyppi ovat varoituksia", () => {
     const f = lintTools([{ ...good, inputSchema: { type: "object", properties: { x: {}, y: { type: "string" }, z: { type: "string", description: " " } } } }]);
     expect(f.filter((x) => x.id === "SCHEMA_PROP_UNTYPED")).toHaveLength(1);

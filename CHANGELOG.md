@@ -4,6 +4,10 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 ## [Julkaisematon]
 
+### Lisätty
+
+- `SCHEMA_REQUIRED_INVALID` tunnistaa myös `required`-listan, jossa sama kenttä on useasti (JSON Schema vaatii yksilölliset alkiot, ja esim. Ajv hylkää skeeman). Toistuva kenttä nimetään viestissä kerran.
+
 ### Muutettu
 
 - Kun HTTP-palvelin torjuu yhteyden tilalla 401 tai 403, `CONNECT_FAILED`-viesti nimeää tilan ja antaa vihjeen jatkotoimista (`--bearer-env`, `--auth`). Estoa ei yritetä kiertää.
