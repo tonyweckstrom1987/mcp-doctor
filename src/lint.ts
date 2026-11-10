@@ -52,6 +52,11 @@ function lintObject(tool: string, schema: Record<string, unknown>, prefix: strin
     if (!Array.isArray(required) || required.some((r) => typeof r !== "string")) {
       out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, `required ei ole merkkijonolista${where}`));
     } else {
+      // JSON Schema vaatii, että required-alkiot ovat yksilöllisiä (uniqueItems). Esim. Ajv hylkää koko skeeman käännösvaiheessa.
+      const dupes = [...new Set(required.filter((r, i) => required.indexOf(r) !== i))];
+      if (dupes.length > 0) {
+        out.push(find("SCHEMA_REQUIRED_INVALID", "error", tool, `required sisältää saman kentän useasti: ${dupes.map((d) => `'${join(prefix, d)}'`).join(", ")}${where}`));
+      }
       // Kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta: silloin properties-lista ei ole koko totuus, eikä puuttuvaa kenttää voi tuomita.
       const composed = ["allOf", "anyOf", "oneOf", "$ref"].some((k) => k in schema);
       for (const r of required) {

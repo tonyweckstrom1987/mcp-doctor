@@ -302,7 +302,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 
 ### `SCHEMA_REQUIRED_INVALID` (error)
 
-**Means:** `required` is not a list of strings (the check also applies inside nested objects).
+**Means:** `required` is not a list of strings, or it names the same property more than once (the check also applies inside nested objects). JSON Schema requires the entries to be unique, and validators such as Ajv refuse to compile a schema that repeats one.
 
 **Why it matters:** the model cannot know which arguments it must send.
 
@@ -316,6 +316,17 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 ```
 
 **Check:** re-run; the tool is listed without errors.
+
+Duplicate entries:
+
+```json
+// Before
+{ "type": "object", "properties": { "q": { "type": "string" } }, "required": ["q", "q"] }
+// After
+{ "type": "object", "properties": { "q": { "type": "string" } }, "required": ["q"] }
+```
+
+The duplicate form was verified end to end against a stdio test server (the SDK client accepts the list, so mcp-doctor sees it): `VIRHE [SCHEMA_REQUIRED_INVALID] search: required sisältää saman kentän useasti: 'q'`, exit code 1.
 
 **Not verified as `SCHEMA_REQUIRED_INVALID`:** a string-valued `required` at the top level is rejected by the SDK client while reading the list, so the run reports `TOOLS_LIST_FAILED` with `"path": [ "tools", 0, "inputSchema", "required" ]` (verified). The code itself is covered only by a unit test.
 
@@ -902,4 +913,4 @@ HUOMIO   [AUTH_OK] OAuth-metatiedot kunnossa (resurssi http://127.0.0.1:9101/.we
 
 ## Not covered
 
-`TOOLS_PAGINATION_LOOP` and `TOOLS_PAGINATION_LIMIT` after states, and the timeout and `outputSchema` variants of `SMOKE_CALL_FAILED`, were not run. `SCHEMA_NOT_OBJECT`, `OUTPUT_SCHEMA_NOT_OBJECT` and `SCHEMA_REQUIRED_INVALID` are unit-tested but could not be reproduced end to end (see their sections).
+`TOOLS_PAGINATION_LOOP` and `TOOLS_PAGINATION_LIMIT` after states, and the timeout and `outputSchema` variants of `SMOKE_CALL_FAILED`, were not run. `SCHEMA_NOT_OBJECT`, `OUTPUT_SCHEMA_NOT_OBJECT` and the non-list form of `SCHEMA_REQUIRED_INVALID` are unit-tested but could not be reproduced end to end (see their sections).
