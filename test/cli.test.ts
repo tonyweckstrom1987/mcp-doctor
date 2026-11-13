@@ -103,6 +103,19 @@ describe("CLI: stdio-palvelin", () => {
     expect(io.out).toContain("OK");
   });
 
+  it("--env-arvo ei vuoda raporttiin, vaikka palvelin tulostaa sen stderriin", async () => {
+    const leak = fixture("leak-server.mjs");
+    const secret = "sk-testi-1234567890abcdef";
+    for (const json of [false, true]) {
+      const io = makeIo({ API_TOKEN: secret });
+      expect(await main([...(json ? ["--json"] : []), "--env", "API_TOKEN", "--", NODE, leak], io)).toBe(1);
+      expect(io.out).toContain("CONNECT_FAILED");
+      expect(io.out).toContain("virheellinen avain: ***");
+      expect(io.out).not.toContain(secret);
+      expect(io.out).not.toContain(secret.slice(0, 8));
+    }
+  });
+
   it("aikakatkaisu --timeout-ms:llä", async () => {
     const io = makeIo({}, { "s.json": JSON.stringify([{ tool: "slow", arguments: { ms: 6000 } }]) });
     expect(await main(["--timeout-ms", "1500", "--smoke", "s.json", ...good], io)).toBe(1);
@@ -113,6 +126,19 @@ describe("CLI: stdio-palvelin", () => {
     const io = makeIo({}, { "s.json": JSON.stringify([{ tool: "slow", arguments: { ms: 1500 } }, { tool: "slow", arguments: { ms: 1500 } }, { tool: "slow", arguments: { ms: 1500 } }]) });
     expect(await main(["--total-timeout-ms", "2000", "--smoke", "s.json", ...good], io)).toBe(1);
     expect(io.out).toContain("TOTAL_TIMEOUT");
+  });
+
+  it.each([["--timeout-ms"], ["--total-timeout-ms"]])("%s yli 2^31-1 ms on käyttövirhe eikä väärä aikakatkaisu", async (lippu) => {
+    const io = makeIo();
+    expect(await main([lippu, "2147483648", ...good], io)).toBe(2);
+    expect(io.err).toContain(`${lippu} saa olla enintään 2147483647`);
+    expect(io.out).not.toContain("CONNECT_FAILED");
+  });
+
+  it("--timeout-ms 2147483647 (suurin sallittu) ei aikakatkaise tervettä palvelinta", async () => {
+    const io = makeIo();
+    expect(await main(["--timeout-ms", "2147483647", ...good], io)).toBe(0);
+    expect(io.out).not.toContain("CONNECT_FAILED");
   });
 
   it.each([["0"], ["-5"], ["1.5"], ["abc"]])("--total-timeout-ms %s on käyttövirhe", async (v) => {
