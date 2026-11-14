@@ -25,7 +25,22 @@ describe("parseSmokeSpec", () => {
     ["maxMs merkkijono", '[{"tool":"x","maxMs":"5"}]'],
     ["tyhjä taulukko", "[]"],
     ["tyhjä calls", '{"calls":[]}'],
+    ["tuntematon kenttä", '[{"tool":"x","foo":1}]'],
   ])("hylkää: %s", (_nimi, text) => {
     expect(() => parseSmokeSpec(text)).toThrow(UsageError);
+  });
+
+  it.each([
+    ["args", "arguments"],
+    ["expect_error", "expectError"],
+    ["maxms", "maxMs"],
+  ])("kirjoitusvirhe %s ei ohitu hiljaa, vaan ehdottaa kenttää %s", (key, hint) => {
+    const text = JSON.stringify([{ tool: "delete_note", [key]: key === "args" ? { id: 999 } : key === "maxms" ? 50 : true }]);
+    expect(() => parseSmokeSpec(text)).toThrow(UsageError);
+    expect(() => parseSmokeSpec(text)).toThrow(`calls[0]: tuntematon kenttä '${key}' (tarkoititko '${hint}'?)`);
+  });
+
+  it("tuntematon kenttä ilman ehdotusta listaa sallitut kentät", () => {
+    expect(() => parseSmokeSpec('[{"tool":"x","comment":"testi"}]')).toThrow("sallitut: tool, arguments, expectError, maxMs");
   });
 });

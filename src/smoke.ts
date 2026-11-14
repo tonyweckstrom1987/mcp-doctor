@@ -2,6 +2,24 @@ import { UsageError, type SmokeCall } from "./types.js";
 
 export const DEFAULT_MAX_MS = 5000;
 
+const CALL_KEYS = ["tool", "arguments", "expectError", "maxMs"] as const;
+
+/** Yleisimmät kirjoitusvirheet: ilman tätä esim. "args" ohitettaisiin ja työkalu kutsuttaisiin tyhjillä argumenteilla. */
+const KEY_HINTS: Record<string, string> = {
+  args: "arguments",
+  argument: "arguments",
+  params: "arguments",
+  parameters: "arguments",
+  input: "arguments",
+  name: "tool",
+  expect_error: "expectError",
+  expecterror: "expectError",
+  expectederror: "expectError",
+  max_ms: "maxMs",
+  maxms: "maxMs",
+  timeout: "maxMs",
+};
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -24,6 +42,13 @@ export function parseSmokeSpec(text: string): SmokeCall[] {
   calls.forEach((c, i) => {
     const at = `calls[${i}]`;
     if (!isRecord(c)) throw new UsageError(`${at}: pitää olla objekti`);
+    for (const key of Object.keys(c)) {
+      if ((CALL_KEYS as readonly string[]).includes(key)) continue;
+      const hint = KEY_HINTS[key.toLowerCase()];
+      throw new UsageError(
+        `${at}: tuntematon kenttä '${key}'${hint ? ` (tarkoititko '${hint}'?)` : ""}; sallitut: ${CALL_KEYS.join(", ")}`,
+      );
+    }
     if (typeof c.tool !== "string" || c.tool === "") throw new UsageError(`${at}: tool puuttuu`);
     if (c.arguments !== undefined && !isRecord(c.arguments)) throw new UsageError(`${at}: arguments pitää olla objekti`);
     if (c.expectError !== undefined && typeof c.expectError !== "boolean") throw new UsageError(`${at}: expectError pitää olla true tai false`);

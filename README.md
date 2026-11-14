@@ -95,7 +95,7 @@ Smoke calls run **only** the tools named in the smoke file, with the arguments y
 }
 ```
 
-Fields: `tool` (required), `arguments` (default `{}`), `expectError` (default `false`), `maxMs` (default 5000). A plain array also works.
+Fields: `tool` (required), `arguments` (default `{}`), `expectError` (default `false`), `maxMs` (default 5000). A plain array also works. Any other field is a usage error (exit 2), so a typo such as `args` or `expect_error` cannot silently call the tool with empty arguments.
 
 ## What it checks
 

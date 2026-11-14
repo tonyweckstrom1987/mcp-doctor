@@ -11,6 +11,7 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 
 ### Muutettu
 
+- Savuajotiedoston kutsussa tuntematon kenttä on nyt käyttövirhe (exit 2). Aiemmin esim. `"args": {"id": 999}` tai `"expect_error": true` ohitettiin hiljaa, jolloin työkalu kutsuttiin tyhjillä argumenteilla ja ilman odotettua virhettä; tietoa muuttavalle työkalulle se voi olla vaarallista. Yleisimmille kirjoitusvirheille virheilmoitus ehdottaa oikeaa kenttää.
 - Kun HTTP-palvelin torjuu yhteyden tilalla 401 tai 403, `CONNECT_FAILED`-viesti nimeää tilan ja antaa vihjeen jatkotoimista (`--bearer-env`, `--auth`). Estoa ei yritetä kiertää.
 - `--auth` ei enää väitä kirjautumisen olevan tarpeeton, kun palvelin vastaa 403: uusi huomio `AUTH_FORBIDDEN` kertoo eston.
 - JSON-ulostulo muuttuu: uusi tunnus `AUTH_FORBIDDEN` korvaa 403-tilassa tunnuksen `AUTH_NOT_REQUIRED`. Jos käsittelet `--auth --json` -ulostuloa koneellisesti, päivitä tunnuksen tarkistus.
