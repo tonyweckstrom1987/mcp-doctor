@@ -28,6 +28,35 @@ function lintSchema(tool: string, schema: unknown, kind: "input" | "output"): Fi
 
 const MAX_DEPTH = 8;
 
+/** Kentät, jotka then/else- tai dependentSchemas-alaskeema määrittelee. Ne ovat kelvollisia required-listassa. */
+function conditionalProps(schema: Record<string, unknown>): Set<string> {
+  const out = new Set<string>();
+  const subs: unknown[] = [schema.then, schema.else];
+  if (isRecord(schema.dependentSchemas)) subs.push(...Object.values(schema.dependentSchemas));
+  for (const sub of subs) {
+    if (isRecord(sub) && isRecord(sub.properties)) for (const k of Object.keys(sub.properties)) out.add(k);
+  }
+  return out;
+}
+
+/** patternProperties-avaimet säännöllisinä lausekkeina. Virheellinen lauseke ohitetaan (ei kaada tarkastusta). */
+function patternRegexes(pp: unknown): RegExp[] {
+  if (!isRecord(pp)) return [];
+  const out: RegExp[] = [];
+  for (const p of Object.keys(pp)) {
+    try {
+      out.push(new RegExp(p, "u"));
+    } catch {
+      try {
+        out.push(new RegExp(p));
+      } catch {
+        // ei kelvollinen lauseke: ei tulkita kentäksi
+      }
+    }
+  }
+  return out;
+}
+
 function hasType(def: Record<string, unknown>, t: string): boolean {
   return def.type === t || (Array.isArray(def.type) && def.type.includes(t));
 }
@@ -54,11 +83,15 @@ function lintObject(tool: string, schema: Record<string, unknown>, prefix: strin
     } else {
       // Kentät voivat tulla allOf/anyOf/oneOf/$ref-rakenteen kautta: silloin properties-lista ei ole koko totuus, eikä puuttuvaa kenttää voi tuomita.
       const composed = ["allOf", "anyOf", "oneOf", "$ref"].some((k) => k in schema);
+      const conditional = conditionalProps(schema);
+      const patterns = patternRegexes(schema.patternProperties);
       for (const r of required) {
         // Object.hasOwn: perityt avaimet (esim. "constructor") eivät ole kenttiä.
         if (!props || !Object.hasOwn(props, r)) {
           // Yhdistelmähaara voi vaatia vanhemman kentän (esim. anyOf: [{required: ["a"]}, {required: ["b"]}]).
           if (composed || inherited.has(r)) continue;
+          // Kenttä voi olla määritelty ehtorakenteessa (if/then/else, dependentSchemas) tai patternProperties-säännöllä.
+          if (conditional.has(r) || patterns.some((re) => re.test(r))) continue;
           out.push(find("SCHEMA_REQUIRED_UNKNOWN", "error", tool, `pakollinen kenttä '${join(prefix, r)}' ei ole properties-listassa`));
         }
       }
@@ -105,7 +138,7 @@ function lintValue(tool: string, def: Record<string, unknown>, path: string, dep
   if (isRecord(def.properties) || def.required !== undefined) {
     out.push(...lintObject(tool, def, path, depth, inherited));
   }
-  out.push(...lintBranches(tool, def, path, depth + 1));
+  out.push(...lintBranches(tool, def, path, depth + 1, inherited));
   return out;
 }
 
@@ -114,12 +147,13 @@ const BRANCH_KEYS = ["anyOf", "oneOf", "allOf"] as const;
 /**
  * Laskeutuu anyOf/oneOf/allOf-haaroihin. Esim. nullable-taulukko anyOf: [{type: "array"}, {type: "null"}] ilman items-määrittelyä
  * kaatuu Geminissä samoin kuin suora taulukko. Haaroilta ei vaadita omaa kuvausta (kuvaus on yleensä kentällä itsellään),
- * ja haaran required saa viitata vanhemman kenttiin.
+ * ja haaran required saa viitata vanhemman (myös isovanhemman) kenttiin.
  */
-function lintBranches(tool: string, def: Record<string, unknown>, path: string, depth: number): Finding[] {
+function lintBranches(tool: string, def: Record<string, unknown>, path: string, depth: number, inherited: ReadonlySet<string> = new Set()): Finding[] {
   if (depth > MAX_DEPTH) return [];
   const out: Finding[] = [];
-  const parentProps = new Set(isRecord(def.properties) ? Object.keys(def.properties) : []);
+  // Sisäkkäinen haara (esim. allOf: [{anyOf: [{required: ["a"]}]}]) saa viitata kaikkien esivanhempien kenttiin.
+  const parentProps = new Set([...inherited, ...(isRecord(def.properties) ? Object.keys(def.properties) : [])]);
   for (const key of BRANCH_KEYS) {
     const branches = def[key];
     if (!Array.isArray(branches)) continue;

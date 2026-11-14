@@ -77,6 +77,37 @@ describe("lintTools", () => {
     }
   });
 
+  describe("required: kentät muualta kuin properties-listasta", () => {
+    const a = { a: { type: "string", description: "kuvaus" } };
+    const req = (schema: Record<string, unknown>) => ids([{ ...good, inputSchema: { type: "object", ...schema } }]).filter((i) => i === "SCHEMA_REQUIRED_UNKNOWN");
+
+    it("sisäkkäinen haara saa vaatia isovanhemman kentän", () => {
+      expect(req({ properties: a, allOf: [{ anyOf: [{ required: ["a"] }, { required: ["a"] }] }] })).toEqual([]);
+      expect(req({ properties: a, oneOf: [{ allOf: [{ anyOf: [{ required: ["a"] }] }] }] })).toEqual([]);
+      // kontrolli: tuntematon kenttä sisäkkäisessä haarassa on yhä virhe
+      expect(req({ properties: a, allOf: [{ anyOf: [{ required: ["b"] }] }] })).toEqual(["SCHEMA_REQUIRED_UNKNOWN"]);
+    });
+
+    it("then/else-haaran kenttä kelpaa required-listaan, tuntematon ei", () => {
+      expect(req({ properties: a, if: { properties: { a: { const: "x" } } }, then: { properties: { b: { type: "string" } } }, required: ["a", "b"] })).toEqual([]);
+      expect(req({ properties: a, if: { properties: { a: { const: "x" } } }, else: { properties: { c: { type: "number" } } }, required: ["c"] })).toEqual([]);
+      expect(req({ properties: a, if: { properties: { a: { const: "x" } } }, then: { required: ["b"] }, required: ["b2"] })).toEqual(["SCHEMA_REQUIRED_UNKNOWN"]);
+    });
+
+    it("dependentSchemas-kenttä kelpaa required-listaan", () => {
+      expect(req({ properties: a, dependentSchemas: { a: { properties: { b: { type: "string" } } } }, required: ["a", "b"] })).toEqual([]);
+    });
+
+    it("patternProperties-säännön kattama kenttä kelpaa, muu ei", () => {
+      expect(req({ patternProperties: { "^x_": { type: "string" } }, required: ["x_a"] })).toEqual([]);
+      expect(req({ patternProperties: { "^x_": { type: "string" } }, required: ["y"] })).toEqual(["SCHEMA_REQUIRED_UNKNOWN"]);
+    });
+
+    it("virheellinen patternProperties-lauseke ei kaada tarkastusta", () => {
+      expect(req({ patternProperties: { "(": { type: "string" } }, required: ["a"] })).toEqual(["SCHEMA_REQUIRED_UNKNOWN"]);
+    });
+  });
+
   it("required: perityt avaimet (constructor) eivät ole kenttiä", () => {
     const schema = { type: "object", properties: { a: { type: "string", description: "kuvaus" } }, required: ["constructor"] };
     expect(ids([{ ...good, inputSchema: schema }])).toContain("SCHEMA_REQUIRED_UNKNOWN");

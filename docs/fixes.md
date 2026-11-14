@@ -338,7 +338,7 @@ HUOMIO   [TOOL_DESC_SHORT] search: kuvaus on hyvin lyhyt (6 merkkiä)
 VIRHE    [SCHEMA_REQUIRED_UNKNOWN] search: pakollinen kenttä 'query' ei ole properties-listassa
 ```
 
-The check skips objects that use `allOf`, `anyOf`, `oneOf` or `$ref`, because the property may be defined there.
+The check skips objects that use `allOf`, `anyOf`, `oneOf` or `$ref`, because the property may be defined there. It also accepts a name that is defined in a `then`/`else` or `dependentSchemas` subschema, matched by a `patternProperties` pattern, or (inside a nested `anyOf`/`oneOf`/`allOf` branch) defined by any enclosing object.
 
 **Check:** re-run; the error is gone.
 
