@@ -14,6 +14,7 @@ Muoto perustuu [Keep a Changelogiin](https://keepachangelog.com/fi/1.0.0/), ja v
 - Kun HTTP-palvelin torjuu yhteyden tilalla 401 tai 403, `CONNECT_FAILED`-viesti nimeää tilan ja antaa vihjeen jatkotoimista (`--bearer-env`, `--auth`). Estoa ei yritetä kiertää.
 - `--auth` ei enää väitä kirjautumisen olevan tarpeeton, kun palvelin vastaa 403: uusi huomio `AUTH_FORBIDDEN` kertoo eston.
 - JSON-ulostulo muuttuu: uusi tunnus `AUTH_FORBIDDEN` korvaa 403-tilassa tunnuksen `AUTH_NOT_REQUIRED`. Jos käsittelet `--auth --json` -ulostuloa koneellisesti, päivitä tunnuksen tarkistus.
+- Issue-lomake `health-check.yml`: MCP-palvelimen tekijä voi pyytää ilmaisen terveystarkastuksen. Lomake kysyy repon osoitteen, käynnistyskomennon, haluttaanko julkinen vastaus ja suostumuksen eristettyyn ajoon. Vastaukset hyväksytään käsin ennen lähettämistä.
 
 ## [0.5.0] - 2026-11-02
 
